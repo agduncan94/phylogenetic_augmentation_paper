@@ -25,7 +25,6 @@ from matplotlib.offsetbox import AnchoredText
 from scipy import stats
 import os.path
 import utils
-import uuid
 
 # ====================================================================================================================
 # Global settings and parameters
@@ -33,7 +32,7 @@ import uuid
 tf.debugging.set_log_device_placement(False)
 file_folder = "../process_data/output/"
 homolog_dir = "../process_data/output/orthologs/"
-output_folder = "./output/"
+output_folder = "./output_3/"
 correlation_file_path = output_folder + 'model_correlation.tsv'
 batch_size = 128
 fold = 4
@@ -63,7 +62,7 @@ def get_batch(fasta_obj, dev_activity_array, hk_activity_array, indices, batch_s
 	
 	return X_reshaped, Y
 
-def data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, shuffle_epoch_end=True, use_homologs=False, fold=1):
+def data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, shuffle_epoch_end=True, use_homologs=False, fold=1, order=False):
 	"""
 	Generator function for loading input data in batches
 	"""
@@ -85,7 +84,11 @@ def data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, sh
 	hk_activity_array = Activity['Hk_log2_enrichment']
 	
 	# Create the batch indices
-	indices = np.random.choice(list(range(num_samples)), num_samples, replace=False)
+	n_data = len(fasta_obj.fasta_names)
+	if not order:
+		indices = np.random.choice(list(range(num_samples)), num_samples, replace=False)
+	else:
+		indices = list(range(n_data))
 	
 	ii = 0
 	while True:		
@@ -100,7 +103,10 @@ def data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, sh
 		if ii >= num_samples:
 			ii = 0
 			if shuffle_epoch_end:
-				indices = np.random.choice(list(range(num_samples)), num_samples, replace=False)
+				if not order:
+					indices = np.random.choice(list(range(num_samples)), num_samples, replace=False)
+				else:
+					indices = list(range(n_data))
 
 def calculate_batch_size(fasta_obj, indices, batch_size, ii, fold):
 	"""
@@ -218,33 +224,48 @@ def ExplaiNN():
     """
     ExplaiNN architecture from Novakosky et al
     """
-    lr = 0.002
-	
     input = kl.Input(shape=(249, 4))
-    x = kl.Conv1D(100, kernel_size=19,
-                  padding=params['pad'],
-                  name='Conv1D')(input)
-    x = BatchNormalization()(x)
-    x = Activation('exponential')(x)
-    x = MaxPooling1D(2)(x)
-    
-    x = Flatten()(x)
-    
-    bottleneck = x
-    
-    # heads per task (Dev and Hk enhancer activities)
+	
+    # Each CNN unit represents a motif
+    cnns = []
+	
+    for i in range(100):		
+		# 1st convolutional layer
+        cnn_x = kl.Conv1D(1, kernel_size=19, padding='same', name=str('cnn_' + str(i)))(input)
+        cnn_x = BatchNormalization()(cnn_x)
+        cnn_x = Activation('exponential')(cnn_x)
+        cnn_x = MaxPooling1D(pool_size=7, strides=7)(cnn_x)
+        cnn_x = Flatten()(cnn_x)
+		
+		# 1st FC layer
+        cnn_x = kl.Dense(20, name=str('FC_' + str(i) + '_a'))(cnn_x)
+        cnn_x = BatchNormalization()(cnn_x)
+        cnn_x = Activation('relu')(cnn_x)
+        cnn_x = Dropout(0.3)(cnn_x)
+		
+		# 2nd FC layer
+        cnn_x = kl.Dense(1, name=str('FC_' + str(i) + '_b'))(cnn_x)
+        cnn_x = BatchNormalization()(cnn_x)
+        cnn_x = Activation('relu')(cnn_x)
+        cnn_x = Flatten()(cnn_x)
+		
+        cnns.append(cnn_x)
+		
+    cnns = kl.concatenate(cnns)
+            
     tasks = ['Dev', 'Hk']
     outputs = []
     for task in tasks:
-        outputs.append(kl.Dense(1, activation='linear', name=str('Dense_' + task))(bottleneck))
+        outputs.append(kl.Dense(1, activation='linear', name=str('Dense_' + task))(cnns))
 
     model = keras.models.Model([input], outputs)
-    model.compile(keras.optimizers.Adam(learning_rate=lr),
-                  loss=['mse', 'mse'], # loss
-                  loss_weights=[1, 1], # loss weigths to balance
-                  metrics=[Spearman, Pearson]) # additional track metric
+    model.compile(keras.optimizers.Adam(learning_rate=0.002),
+                  loss=['mse', 'mse'],
+                  loss_weights=[1, 1],
+                  metrics=[Spearman, Pearson])
 
     return model
+
 
 def SimpleModel():
     """
@@ -260,7 +281,7 @@ def SimpleModel():
                   name='Conv1D')(input)
     x = BatchNormalization()(x)
     x = Activation('exponential')(x)
-    x = MaxPooling1D(2)(x)
+    x = MaxPooling1D(10)(x) # try 10, peter did 24
     
     x = Flatten()(x)
     
@@ -311,6 +332,7 @@ def train(model, model_type, use_homologs, replicate):
 	# Determine the number of sequences in training and validation (For generator)
 	num_samples_train = utils.count_lines_in_file(file_folder + "Sequences_activity_Train.txt") - 1
 	num_samples_val = utils.count_lines_in_file(file_folder + "Sequences_activity_Val.txt") - 1
+	num_samples_test = utils.count_lines_in_file(file_folder + "Sequences_activity_Test.txt") - 1
 
 	# Data for train and validation sets
 	datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_dir, num_samples_train, batch_size, True, use_homologs, fold)
@@ -328,11 +350,19 @@ def train(model, model_type, use_homologs, replicate):
 	# Save results
 	epochs_total = len(history.history['val_Dense_Dev_Spearman'])
 	if use_homologs:
-		write_to_file(model_id + "\thomologs\t" + model_type + "\t" + str(replicate) + "\t" + str(history.history['Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Hk_Pearson'][epochs_total-1]) + "\n")
 		save_model(model_id + "_homologs", model, history, model_output_folder)
+		test_correlation_dev, test_correlation_hk = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_homologs_Test", num_samples_test)
+		write_to_file(model_id + "\thomologs\t" + model_type + "\t" + str(replicate) + "\t" + str(history.history['Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
 	else:
-		write_to_file(model_id + "\tnone\t" + model_type + "\t" + str(replicate) + "\t" + str(history.history['Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Hk_Pearson'][epochs_total-1]) + "\n")
 		save_model(model_id + "_none", model, history, model_output_folder)
+		test_correlation_dev, test_correlation_hk = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_none_Test", num_samples_test)
+		write_to_file(model_id + "\tnone\t" + model_type + "\t" + str(replicate) + "\t" + str(history.history['Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
+		
+	# Save plots for performance and loss
+	if use_homologs:
+		plot_scatterplots(history, model_output_folder, model_id, 'homologs')
+	else:
+		plot_scatterplots(history, model_output_folder, model_id, 'none')
 		
 	# Fine tuning on original training
 	model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=1e-4, weight_decay=1e-6),
@@ -351,11 +381,13 @@ def train(model, model_type, use_homologs, replicate):
 	
 	# Save results
 	if use_homologs:
-		write_to_file(model_id + "\thomologs_finetune\t" + model_type + "\t" + str(replicate) + "\t" + str(fine_tune_history.history['Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\n")
 		save_model(model_id + "_homologs_finetune", model, fine_tune_history, model_output_folder)
+		test_correlation_dev, test_correlation_hk = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_homologs_finetune_Test", num_samples_test)
+		write_to_file(model_id + "\thomologs_finetune\t" + model_type + "\t" + str(replicate) + "\t" + str(fine_tune_history.history['Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
 	else:
-		write_to_file(model_id + "\tfinetune\t" + model_type + "\t" + str(replicate) + "\t" + str(fine_tune_history.history['Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\n")
 		save_model(model_id + "_finetune", model, fine_tune_history, model_output_folder)
+		test_correlation_dev, test_correlation_hk = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_finetune_Test", num_samples_test)
+		write_to_file(model_id + "\tfinetune\t" + model_type + "\t" + str(replicate) + "\t" + str(fine_tune_history.history['Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
 	
 	# Save the model and history
 	model_json = model.to_json()
@@ -368,14 +400,10 @@ def train(model, model_type, use_homologs, replicate):
 	    pickle.dump(history.history, file_pi)
     	
 	# Save plots for performance and loss
-	plot_scatterplot(history, 'Dense_Dev_Spearman', 'val_Dense_Dev_Spearman', 'SCC', 'epoch', 'Model performance Dev (Spearman)', model_output_folder + 'Model_' + model_id + '_Dev_spearman.png')
-	plot_scatterplot(history, 'Dense_Hk_Spearman', 'val_Dense_Hk_Spearman', 'SCC', 'epoch', 'Model performance Hk (Spearman)', model_output_folder + 'Model_' + model_id + '_Hk_spearman.png')
-	
-	plot_scatterplot(history, 'Dense_Dev_Pearson', 'val_Dense_Dev_Pearson', 'PCC', 'epoch', 'Model performance Dev (Pearson)', model_output_folder + 'Model_' + model_id + '_Dev_pearson.png')
-	plot_scatterplot(history, 'Dense_Hk_Pearson', 'val_Dense_Hk_Pearson', 'PCC', 'epoch', 'Model performance Hk (Pearson)', model_output_folder + 'Model_' + model_id + '_Hk_pearson.png')
-
-	plot_scatterplot(history, 'Dense_Dev_loss', 'val_Dense_Dev_loss', 'loss', 'epoch', 'Model loss Dev', model_output_folder + 'Model_' + model_id + '_Dev_loss.png')		
-	plot_scatterplot(history, 'Dense_Hk_loss', 'val_Dense_Hk_loss', 'loss', 'epoch', 'Model loss Hk', model_output_folder + 'Model_' + model_id + '_Hk_loss.png')
+	if use_homologs:
+		plot_scatterplots(fine_tune_history, model_output_folder, model_id, 'homologs_finetune')
+	else:
+		plot_scatterplots(fine_tune_history, model_output_folder, model_id, 'finetune')
 	
 def train_deepstarr(use_homologs, replicate, model_type="DeepSTARR"):
 	model = DeepSTARR()
@@ -392,6 +420,56 @@ def train_simple_model(use_homologs, replicate, model_type="SimpleCnn"):
 # ====================================================================================================================
 # Plot model performance
 # ====================================================================================================================
+def plot_prediction_vs_actual(model, fasta_file, activity_file, output_file_prefix, num_samples):
+	# Load the activity data
+	Y_0 = np.array([])
+	Y_1 = np.array([])
+	
+	count = 0
+	for x,y in data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, use_homologs=False, order=True):
+		Y_0 = np.concatenate((Y_0, y[0]), axis=0)
+		Y_1 = np.concatenate((Y_1, y[1]), axis=0)
+		count += 1
+		if count > (num_samples / batch_size):
+			break
+		
+	Y = [Y_0, Y_1]
+	
+	# Get model predictions
+	data_generator = data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, use_homologs=False, order=True)
+	Y_pred = model.predict(data_generator, steps=math.ceil(num_samples / batch_size))
+	
+	# Calculate PCC
+	correlation_dev = stats.pearsonr(Y[0], Y_pred[0].squeeze())[0]
+	correlation_hk = stats.pearsonr(Y[1], Y_pred[1].squeeze())[0]
+	
+	# Plot 2iL correlation
+	fig, ax = plt.subplots()
+	ax.scatter(Y[0], Y_pred[0].squeeze())
+	ax.set_title("Dev Correlation")
+	ax.set_xlabel('Measured')
+	ax.set_ylabel('Predicted')
+	at = AnchoredText("PCC:" + str(correlation_dev), prop=dict(size=15), frameon=True, loc='upper left')
+	at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+	ax.add_artist(at)
+	plt.savefig(output_file_prefix + '_Dev_correlation.png')
+	plt.clf()
+	
+	# Plot SL correlation
+	fig, ax = plt.subplots()
+	ax.scatter(Y[1], Y_pred[1].squeeze())
+	ax.set_title("Hk Correlation")
+	ax.set_xlabel('Measured')
+	ax.set_ylabel('Predicted')
+	at = AnchoredText("PCC:" + str(correlation_hk), prop=dict(size=15), frameon=True, loc='upper left')
+	at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+	ax.add_artist(at)
+	plt.savefig(output_file_prefix + '_Hk_correlation.png')
+	plt.clf()
+	
+	return correlation_dev, correlation_hk
+	
+
 def plot_scatterplot(history, a, b, x, y, title, filename):
 	plt.plot(history.history[a])
 	plt.plot(history.history[b])
@@ -402,6 +480,16 @@ def plot_scatterplot(history, a, b, x, y, title, filename):
 	plt.savefig(filename)
 	plt.clf()
 	 
+def plot_scatterplots(history, model_output_folder, model_id, name):
+	plot_scatterplot(history, 'Dense_Dev_Spearman', 'val_Dense_Dev_Spearman', 'SCC', 'epoch', 'Model performance Dev (Spearman)', model_output_folder + 'Model_' + model_id + '_' + name + '_Dev_spearman.png')
+	plot_scatterplot(history, 'Dense_Hk_Spearman', 'val_Dense_Hk_Spearman', 'SCC', 'epoch', 'Model performance Hk (Spearman)', model_output_folder + 'Model_' + model_id + '_' + name + '_Hk_spearman.png')
+	
+	plot_scatterplot(history, 'Dense_Dev_Pearson', 'val_Dense_Dev_Pearson', 'PCC', 'epoch', 'Model performance Dev (Pearson)', model_output_folder + 'Model_' + model_id + '_' + name + '_Dev_pearson.png')
+	plot_scatterplot(history, 'Dense_Hk_Pearson', 'val_Dense_Hk_Pearson', 'PCC', 'epoch', 'Model performance Hk (Pearson)', model_output_folder + 'Model_' + model_id + '_' + name + '_Hk_pearson.png')
+
+	plot_scatterplot(history, 'Dense_Dev_loss', 'val_Dense_Dev_loss', 'loss', 'epoch', 'Model loss Dev', model_output_folder + 'Model_' + model_id + '_' + name + '_Dev_loss.png')		
+	plot_scatterplot(history, 'Dense_Hk_loss', 'val_Dense_Hk_loss', 'loss', 'epoch', 'Model loss Hk', model_output_folder + 'Model_' + model_id + '_' + name + '_Hk_loss.png')
+	
 # ====================================================================================================================
 # Helpers
 # ====================================================================================================================
@@ -412,7 +500,7 @@ def write_to_file(line):
 		f.close()
 	else:
 		f = open(correlation_file_path, "w")
-		f.write("name\ttype\tmodel\treplicate\tpcc_train_dev\tpcc_train_hk\tpcc_val_dev\tpcc_val_hk\n")
+		f.write("name\ttype\tmodel\treplicate\tpcc_train_dev\tpcc_train_hk\tpcc_val_dev\tpcc_val_hk\tpcc_test_dev\tpcc_test_hk\n")
 		f.write(line)
 		f.close()
 
