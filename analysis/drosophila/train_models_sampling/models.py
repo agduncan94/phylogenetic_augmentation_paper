@@ -32,7 +32,7 @@ import utils
 tf.debugging.set_log_device_placement(False)
 file_folder = "../process_data/output/"
 homolog_dir = "../process_data/output/orthologs/"
-output_folder = "./output_3/"
+output_folder = "./output/"
 correlation_file_path = output_folder + 'model_correlation.tsv'
 batch_size = 128
 fold = 4
@@ -62,7 +62,7 @@ def get_batch(fasta_obj, dev_activity_array, hk_activity_array, indices, batch_s
 	
 	return X_reshaped, Y
 
-def data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, shuffle_epoch_end=True, use_homologs=False, fold=1, order=False):
+def data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, shuffle_epoch_end=True, use_homologs=False, fold=1, order=False, filtered_indices=None):
 	"""
 	Generator function for loading input data in batches
 	"""
@@ -77,8 +77,16 @@ def data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, sh
 			if filename.endswith(".fa"):
 				fasta_obj.add_homolog_sequences(os.path.join(homolog_dir, filename))
 	
+	# Select the right number of samples
+	if (filtered_indices is not None):
+		fasta_obj.sample_fasta(filtered_indices)
+	
 	# Read activity file
 	Activity = pd.read_table(activity_file)
+	
+	if (filtered_indices is not None):
+		Activity = Activity.iloc[filtered_indices]
+		Activity.reset_index(drop=True, inplace=True)
 	
 	dev_activity_array = Activity['Dev_log2_enrichment']
 	hk_activity_array = Activity['Hk_log2_enrichment']
@@ -305,23 +313,23 @@ def SimpleModel():
 
     model = keras.models.Model([input], outputs)
     model.compile(keras.optimizers.Adam(learning_rate=lr),
-                  loss=['mse', 'mse'], # loss
-                  loss_weights=[1, 1], # loss weigths to balance
-                  metrics=[Spearman, Pearson]) # additional track metric
+                  loss=['mse', 'mse'],
+                  loss_weights=[1, 1],
+                  metrics=[Spearman, Pearson])
 
     return model
 
 # ====================================================================================================================
 # Train models
 # ====================================================================================================================
-def train(model, model_type, use_homologs, replicate):
+def train(model, model_type, use_homologs, replicate, sample_percent):
 	# Parameters
 	epochs = 100
 	fine_tune_epochs = 5
 	early_stop = 10
 	
 	# Create a unique identifier
-	model_id = model_type + "_rep" + str(replicate)
+	model_id = model_type + "_frac" + str(sample_percent) + "_rep" + str(replicate)
 	
 	# Create folder for output
 	model_output_folder = output_folder + model_id + "/"
@@ -331,16 +339,20 @@ def train(model, model_type, use_homologs, replicate):
 	num_samples_train = utils.count_lines_in_file(file_folder + "Sequences_activity_Train.txt") - 1
 	num_samples_val = utils.count_lines_in_file(file_folder + "Sequences_activity_Val.txt") - 1
 	num_samples_test = utils.count_lines_in_file(file_folder + "Sequences_activity_Test.txt") - 1
+	
+	# Select a reduced set of sequences for training
+	reduced_num_samples_train = int(num_samples_train * sample_percent)
+	filtered_indices = np.random.choice(list(range(num_samples_train)), reduced_num_samples_train, replace=False)
 
 	# Data for train and validation sets
-	datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_dir, num_samples_train, batch_size, True, use_homologs, fold)
-	datagen_val = data_gen(file_folder + "Sequences_Val.fa", file_folder + "Sequences_activity_Val.txt", homolog_dir, num_samples_val, batch_size, True, False, fold)
+	datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_dir, reduced_num_samples_train, batch_size, True, use_homologs, fold, False, filtered_indices)
+	datagen_val = data_gen(file_folder + "Sequences_Val.fa", file_folder + "Sequences_activity_Val.txt", homolog_dir, num_samples_val, batch_size, True, False, fold, False, None)
 
 	# Fit model
 	history=model.fit(datagen_train,
                                   validation_data=datagen_val,
 								  epochs=epochs,
-								  steps_per_epoch=math.ceil(num_samples_train / batch_size),
+								  steps_per_epoch=math.ceil(reduced_num_samples_train / batch_size),
 								  validation_steps=math.ceil(num_samples_val / batch_size),
                                   callbacks=[EarlyStopping(patience=early_stop, monitor="val_loss", restore_best_weights=True),
                                              History()])
@@ -350,11 +362,11 @@ def train(model, model_type, use_homologs, replicate):
 	if use_homologs:
 		save_model(model_id + "_homologs", model, history, model_output_folder)
 		test_correlation_dev, test_correlation_hk = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_homologs_Test", num_samples_test)
-		write_to_file(model_id + "\thomologs\t" + model_type + "\t" + str(replicate) + "\t" + str(history.history['Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
+		write_to_file(model_id + "\thomologs\t" + model_type + "\t" + str(replicate) + "\t" + str(sample_percent) + "\t" + str(history.history['Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
 	else:
 		save_model(model_id + "_none", model, history, model_output_folder)
 		test_correlation_dev, test_correlation_hk = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_none_Test", num_samples_test)
-		write_to_file(model_id + "\tnone\t" + model_type + "\t" + str(replicate) + "\t" + str(history.history['Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
+		write_to_file(model_id + "\tnone\t" + model_type + "\t" + str(replicate) + "\t" + str(sample_percent) + "\t" + str(history.history['Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Dev_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_Hk_Pearson'][epochs_total-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
 		
 	# Save plots for performance and loss
 	if use_homologs:
@@ -369,11 +381,11 @@ def train(model, model_type, use_homologs, replicate):
 			   metrics=[Spearman, Pearson])
 	
 	if use_homologs:
-		datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_dir, num_samples_train, batch_size, True, False, fold)
+		datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_dir, reduced_num_samples_train, batch_size, True, False, fold, False, filtered_indices)
 	
 	fine_tune_history = model.fit(datagen_train,
 							   validation_data=datagen_val,
-							   steps_per_epoch=math.ceil(num_samples_train / batch_size),
+							   steps_per_epoch=math.ceil(reduced_num_samples_train / batch_size),
 							   validation_steps=math.ceil(num_samples_val / batch_size),
 							   epochs=fine_tune_epochs)
 	
@@ -381,11 +393,11 @@ def train(model, model_type, use_homologs, replicate):
 	if use_homologs:
 		save_model(model_id + "_homologs_finetune", model, fine_tune_history, model_output_folder)
 		test_correlation_dev, test_correlation_hk = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_homologs_finetune_Test", num_samples_test)
-		write_to_file(model_id + "\thomologs_finetune\t" + model_type + "\t" + str(replicate) + "\t" + str(fine_tune_history.history['Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
+		write_to_file(model_id + "\thomologs_finetune\t" + model_type + "\t" + str(replicate) + "\t" + str(sample_percent) + "\t" + str(fine_tune_history.history['Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
 	else:
 		save_model(model_id + "_finetune", model, fine_tune_history, model_output_folder)
 		test_correlation_dev, test_correlation_hk = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_finetune_Test", num_samples_test)
-		write_to_file(model_id + "\tfinetune\t" + model_type + "\t" + str(replicate) + "\t" + str(fine_tune_history.history['Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
+		write_to_file(model_id + "\tfinetune\t" + model_type + "\t" + str(replicate) + "\t" + str(sample_percent) + "\t" + str(fine_tune_history.history['Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Dev_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_Hk_Pearson'][fine_tune_epochs-1]) + "\t" + str(test_correlation_dev) + "\t" + str(test_correlation_hk) + "\n")
 	
 	# Save the model and history
 	model_json = model.to_json()
@@ -403,17 +415,17 @@ def train(model, model_type, use_homologs, replicate):
 	else:
 		plot_scatterplots(fine_tune_history, model_output_folder, model_id, 'finetune')
 	
-def train_deepstarr(use_homologs, replicate, model_type="DeepSTARR"):
+def train_deepstarr(use_homologs, replicate, sample_percent, model_type="DeepSTARR"):
 	model = DeepSTARR()
-	train(model, model_type, use_homologs, replicate)
+	train(model, model_type, use_homologs, replicate, sample_percent)
 
-def train_explainn(use_homologs, replicate, model_type="ExplaiNN"):
+def train_explainn(use_homologs, replicate, sample_percent, model_type="ExplaiNN"):
 	model = ExplaiNN()
-	train(model, model_type, use_homologs, replicate)
+	train(model, model_type, use_homologs, replicate, sample_percent)
 
-def train_simple_model(use_homologs, replicate, model_type="SimpleCnn"):
+def train_simple_model(use_homologs, replicate, sample_percent, model_type="SimpleCnn"):
 	model = SimpleModel()
-	train(model, model_type, use_homologs, replicate)
+	train(model, model_type, use_homologs, replicate, sample_percent)
 	
 # ====================================================================================================================
 # Plot model performance
@@ -498,7 +510,7 @@ def write_to_file(line):
 		f.close()
 	else:
 		f = open(correlation_file_path, "w")
-		f.write("name\ttype\tmodel\treplicate\tpcc_train_dev\tpcc_train_hk\tpcc_val_dev\tpcc_val_hk\tpcc_test_dev\tpcc_test_hk\n")
+		f.write("name\ttype\tmodel\treplicate\tpercent\tpcc_train_dev\tpcc_train_hk\tpcc_val_dev\tpcc_val_hk\tpcc_test_dev\tpcc_test_hk\n")
 		f.write(line)
 		f.close()
 
