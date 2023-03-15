@@ -25,14 +25,15 @@ from matplotlib.offsetbox import AnchoredText
 from scipy import stats
 import os.path
 import utils
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, PrecisionRecallDisplay, auc, roc_curve, average_precision_score
 
 # ====================================================================================================================
 # Global settings and parameters
 # ====================================================================================================================
 tf.debugging.set_log_device_placement(False)
-file_folder = "../process_data/output/"
-homolog_dir = "../process_data/output/orthologs/"
-output_folder = "./output/"
+file_folder = "../process_data/output/classification_balanced/"
+homolog_dir = "../process_data/output/classification_balanced/orthologs/"
+output_folder = "./output_classification_balanced/"
 correlation_file_path = output_folder + 'model_correlation.tsv'
 batch_size = 32
 fold = 4
@@ -40,7 +41,7 @@ fold = 4
 # ====================================================================================================================
 # Common model code
 # ====================================================================================================================
-def get_batch(fasta_obj, h3k27ac_array, tf_sum_array, indices, batch_size, use_homologs=False, fold=1):
+def get_batch(fasta_obj, class_array, indices, batch_size, use_homologs=False, fold=1):
 	"""
 	Creates a batch of the input and one-hot encodes the sequences
 	"""
@@ -50,19 +51,17 @@ def get_batch(fasta_obj, h3k27ac_array, tf_sum_array, indices, batch_size, use_h
 	seqs, seq_multiplier = fasta_obj.one_hot_encode_batch(indices, sequence_length, use_homologs, fold)
 	X = np.nan_to_num(seqs)
 	X_reshaped = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
-	
 	# Get batch of activity values
-	h3k27ac_array_batch = h3k27ac_array[indices]
-	tf_sum_array_batch = tf_sum_array[indices]
+	class_array_batch = class_array[indices]
 	
 	if use_homologs:
-		Y = [np.repeat(h3k27ac_array_batch.to_numpy(), seq_multiplier), np.repeat(tf_sum_array_batch.to_numpy(), seq_multiplier)]
+		Y = np.repeat(class_array_batch.to_numpy(), seq_multiplier)
 	else:
-		Y = [h3k27ac_array_batch.to_numpy(), tf_sum_array_batch.to_numpy()]
-	
-	return X_reshaped, Y
+		Y = class_array_batch.to_numpy()
+		
+	return X, Y
 
-def data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, shuffle_epoch_end=True, use_homologs=False, fold=1, order=False):
+def data_gen(fasta_file, class_file, homolog_dir, num_samples, batch_size, shuffle_epoch_end=True, use_homologs=False, fold=1, order=False):
 	"""
 	Generator function for loading input data in batches
 	"""
@@ -78,10 +77,11 @@ def data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, sh
 				fasta_obj.add_homolog_sequences(os.path.join(homolog_dir, filename))
 	
 	# Read activity file
-	Activity = pd.read_table(activity_file)
+	ClassFile = pd.read_table(class_file)
+	class_array = ClassFile['class']
 	
-	h3k27ac_array = Activity['h3k27ac_log2_enrichment']
-	tf_sum_array = Activity['tf_sum']
+	# One hot encode
+	#class_array = keras.utils.to_categorical(class_array, num_classes=2)
 	
 	# Create the batch indices
 	n_data = len(fasta_obj.fasta_names)
@@ -98,7 +98,7 @@ def data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, sh
 		else:
 			new_batch_size = batch_size
 		
-		yield get_batch(fasta_obj, h3k27ac_array, tf_sum_array, indices[ii:ii + new_batch_size], new_batch_size, use_homologs, fold)
+		yield get_batch(fasta_obj, class_array, indices[ii:ii + new_batch_size], new_batch_size, use_homologs, fold)
 		ii += new_batch_size
 		if ii >= num_samples:
 			ii = 0
@@ -205,18 +205,14 @@ def DeepSTARR():
         x = Activation('relu')(x)
         x = Dropout(dropout_prob)(x)
     bottleneck = x
-    
-    # heads per task (h3k27ac and tf_sum enhancer activities)
-    tasks = ['h3k27ac', 'tf_sum']
-    outputs = []
-    for task in tasks:
-        outputs.append(kl.Dense(1, activation='linear', name=str('Dense_' + task))(bottleneck))
+	
+	# Classification head
+    outputs = kl.Dense(1, activation='sigmoid', name=str('Dense_class'))(bottleneck)
 
     model = keras.models.Model([input], outputs)
     model.compile(keras.optimizers.Adam(learning_rate=lr),
-                  loss=['mse', 'mse'], # loss
-                  loss_weights=[1, 1], # loss weigths to balance
-                  metrics=[Spearman, Pearson]) # additional track metric
+                  loss='binary_crossentropy',
+                  metrics=['accuracy'])
 
     return model
 
@@ -252,17 +248,15 @@ def ExplaiNN():
         cnns.append(cnn_x)
 		
     cnns = kl.concatenate(cnns)
-            
-    tasks = ['h3k27ac', 'tf_sum']
-    outputs = []
-    for task in tasks:
-        outputs.append(kl.Dense(1, activation='linear', name=str('Dense_' + task))(cnns))
+	
+    # Classification head
+    #outputs = (kl.Dense(1, activation='linear', name=str('Dense_linear'))(cnns))
+    outputs = kl.Dense(1, activation='sigmoid', name=str('Dense_class'))(cnns)
 
     model = keras.models.Model([input], outputs)
     model.compile(keras.optimizers.Adam(learning_rate=0.002),
-                  loss=['mse', 'mse'],
-                  loss_weights=[1, 1],
-                  metrics=[Spearman, Pearson])
+                  loss='binary_crossentropy',
+                  metrics=['accuracy'])
 
     return model
 
@@ -298,18 +292,14 @@ def SimpleModel():
     x = Dropout(0.3)(x)
 	
     bottleneck = x
+	
+    # Classification head
+    outputs = kl.Dense(1, activation='sigmoid', name=str('Dense_class'))(bottleneck)
     
-    # heads per task
-    tasks = ['h3k27ac', 'tf_sum']
-    outputs = []
-    for task in tasks:
-        outputs.append(kl.Dense(1, activation='linear', name=str('Dense_' + task))(bottleneck))
-
     model = keras.models.Model([input], outputs)
     model.compile(keras.optimizers.Adam(learning_rate=lr),
-                  loss=['mse', 'mse'], # loss
-                  loss_weights=[1, 1], # loss weigths to balance
-                  metrics=[Spearman, Pearson]) # additional track metric
+                  loss=['binary_crossentropy'],
+                  metrics=['accuracy'])
 
     return model
 
@@ -319,7 +309,6 @@ def SimpleModel():
 def train(model, model_type, use_homologs, replicate):
 	# Parameters
 	epochs = 100
-	fine_tune_epochs = 10
 	early_stop = 10
 	
 	# Create a unique identifier
@@ -344,67 +333,23 @@ def train(model, model_type, use_homologs, replicate):
 								  epochs=epochs,
 								  steps_per_epoch=math.ceil(num_samples_train / batch_size),
 								  validation_steps=math.ceil(num_samples_val / batch_size),
+								  #class_weight={0: 1, 1: 15},
                                   callbacks=[EarlyStopping(patience=early_stop, monitor="val_loss", restore_best_weights=True),
                                              History()])
 	
 	# Save results
-	epochs_total = len(history.history['val_Dense_h3k27ac_Spearman'])
 	if use_homologs:
 		save_model(model_id + "_homologs", model, history, model_output_folder)
-		test_correlation_h3k27ac, test_correlation_tf_sum = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_homologs_Test", num_samples_test)
-		write_to_file(model_id + "\thomologs\t" + model_type + "\t" + str(replicate) + "\t" + str(history.history['Dense_h3k27ac_Pearson'][epochs_total-1]) + "\t" + str(history.history['Dense_tf_sum_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_h3k27ac_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_tf_sum_Pearson'][epochs_total-1]) + "\t" + str(test_correlation_h3k27ac) + "\t" + str(test_correlation_tf_sum) + "\n")
 	else:
 		save_model(model_id + "_none", model, history, model_output_folder)
-		test_correlation_h3k27ac, test_correlation_tf_sum = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_none_Test", num_samples_test)
-		write_to_file(model_id + "\tnone\t" + model_type + "\t" + str(replicate) + "\t" + str(history.history['Dense_h3k27ac_Pearson'][epochs_total-1]) + "\t" + str(history.history['Dense_tf_sum_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_h3k27ac_Pearson'][epochs_total-1]) + "\t" + str(history.history['val_Dense_tf_sum_Pearson'][epochs_total-1]) + "\t" + str(test_correlation_h3k27ac) + "\t" + str(test_correlation_tf_sum) + "\n")
-	
-	# Save plots for performance and loss
-	if use_homologs:
-		plot_scatterplots(history, model_output_folder, model_id, 'homologs')
-	else:
-		plot_scatterplots(history, model_output_folder, model_id, 'none')
 		
-	# Fine tuning on original training
-	model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=1e-4, weight_decay=1e-6),
-			   loss=['mse', 'mse'],
-			   loss_weights=[1,1],
-			   metrics=[Spearman, Pearson])
-	
+	# Make a confusion matrix and precision recall curve (use scikit learn)
 	if use_homologs:
-		datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_dir, num_samples_train, batch_size, True, False, fold)
-	
-	fine_tune_history = model.fit(datagen_train,
-							   validation_data=datagen_val,
-							   steps_per_epoch=math.ceil(num_samples_train / batch_size),
-							   validation_steps=math.ceil(num_samples_val / batch_size),
-							   epochs=fine_tune_epochs)
-	
-	# Save results
-	if use_homologs:
-		save_model(model_id + "_homologs_finetune", model, fine_tune_history, model_output_folder)
-		test_correlation_h3k27ac, test_correlation_tf_sum = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_homologs_finetune_Test", num_samples_test)
-		write_to_file(model_id + "\thomologs_finetune\t" + model_type + "\t" + str(replicate) + "\t" + str(fine_tune_history.history['Dense_h3k27ac_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['Dense_tf_sum_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_h3k27ac_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_tf_sum_Pearson'][fine_tune_epochs-1]) + "\t" + str(test_correlation_h3k27ac) + "\t" + str(test_correlation_tf_sum) + "\n")
+		plot_confusion_matrix(model_id + "_homologs", model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", homolog_dir, num_samples_test)
 	else:
-		save_model(model_id + "_finetune", model, fine_tune_history, model_output_folder)
-		test_correlation_h3k27ac, test_correlation_tf_sum = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_finetune_Test", num_samples_test)
-		write_to_file(model_id + "\tfinetune\t" + model_type + "\t" + str(replicate) + "\t" + str(fine_tune_history.history['Dense_h3k27ac_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['Dense_tf_sum_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_h3k27ac_Pearson'][fine_tune_epochs-1]) + "\t" + str(fine_tune_history.history['val_Dense_tf_sum_Pearson'][fine_tune_epochs-1]) + "\t" + str(test_correlation_h3k27ac) + "\t" + str(test_correlation_tf_sum) + "\n")
+		plot_confusion_matrix(model_id + "_none", model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", homolog_dir, num_samples_test)
 	
-	# Save the model and history
-	model_json = model.to_json()
-	with open(model_output_folder + 'Model_' + model_id + '.json', "w") as json_file:
-	    json_file.write(model_json)
-		
-	model.save_weights(model_output_folder + 'Model_' + model_id + '.h5')
-	
-	with open(model_output_folder + 'Model_' + model_id + '_history', 'wb') as file_pi:
-	    pickle.dump(history.history, file_pi)
     	
-	# Save plots for performance and loss
-	if use_homologs:
-		plot_scatterplots(fine_tune_history, model_output_folder, model_id, 'homologs_finetune')
-	else:
-		plot_scatterplots(fine_tune_history, model_output_folder, model_id, 'finetune')
-	
 def train_deepstarr(use_homologs, replicate, model_type="DeepSTARR"):
 	model = DeepSTARR()
 	train(model, model_type, use_homologs, replicate)
@@ -418,92 +363,8 @@ def train_simple_model(use_homologs, replicate, model_type="SimpleCnn"):
 	train(model, model_type, use_homologs, replicate)
 	
 # ====================================================================================================================
-# Plot model performance
-# ====================================================================================================================
-def plot_prediction_vs_actual(model, fasta_file, activity_file, output_file_prefix, num_samples):
-	# Load the activity data
-	Y_0 = np.array([])
-	Y_1 = np.array([])
-	
-	count = 0
-	for x,y in data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, use_homologs=False, order=True):
-		Y_0 = np.concatenate((Y_0, y[0]), axis=0)
-		Y_1 = np.concatenate((Y_1, y[1]), axis=0)
-		count += 1
-		if count > (num_samples / batch_size):
-			break
-		
-	Y = [Y_0, Y_1]
-	
-	# Get model predictions
-	data_generator = data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, use_homologs=False, order=True)
-	Y_pred = model.predict(data_generator, steps=math.ceil(num_samples / batch_size))
-	
-	# Calculate PCC
-	correlation_h3k27ac = stats.pearsonr(Y[0], Y_pred[0].squeeze())[0]
-	correlation_tf_sum = stats.pearsonr(Y[1], Y_pred[1].squeeze())[0]
-	
-	# Plot h3k27ac correlation
-	fig, ax = plt.subplots()
-	ax.scatter(Y[0], Y_pred[0].squeeze())
-	ax.set_title("h3k27ac Correlation")
-	ax.set_xlabel('Measured')
-	ax.set_ylabel('Predicted')
-	at = AnchoredText("PCC:" + str(correlation_h3k27ac), prop=dict(size=15), frameon=True, loc='upper left')
-	at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
-	ax.add_artist(at)
-	plt.savefig(output_file_prefix + '_h3k27ac_correlation.png')
-	plt.clf()
-	
-	# Plot tf sum correlation
-	fig, ax = plt.subplots()
-	ax.scatter(Y[1], Y_pred[1].squeeze())
-	ax.set_title("tf_sum Correlation")
-	ax.set_xlabel('Measured')
-	ax.set_ylabel('Predicted')
-	at = AnchoredText("PCC:" + str(correlation_tf_sum), prop=dict(size=15), frameon=True, loc='upper left')
-	at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
-	ax.add_artist(at)
-	plt.savefig(output_file_prefix + '_tf_sum_correlation.png')
-	plt.clf()
-	
-	return correlation_h3k27ac, correlation_tf_sum
-	
-
-def plot_scatterplot(history, a, b, x, y, title, filename):
-	plt.plot(history.history[a])
-	plt.plot(history.history[b])
-	plt.title(title)
-	plt.ylabel(x)
-	plt.xlabel(y)
-	plt.legend(['train', 'val'], loc='upper left')
-	plt.savefig(filename)
-	plt.clf()
-	
-def plot_scatterplots(history, model_output_folder, model_id, name):
-	plot_scatterplot(history, 'Dense_h3k27ac_Spearman', 'val_Dense_h3k27ac_Spearman', 'SCC', 'epoch', 'Model performance h3k27ac (Spearman)', model_output_folder + 'Model_' + model_id + '_' + name + '_h3k27ac_spearman.png')
-	plot_scatterplot(history, 'Dense_tf_sum_Spearman', 'val_Dense_tf_sum_Spearman', 'SCC', 'epoch', 'Model performance tf_sum (Spearman)', model_output_folder + 'Model_' + model_id + '_' + name + '_tf_sum_spearman.png')
-	
-	plot_scatterplot(history, 'Dense_h3k27ac_Pearson', 'val_Dense_h3k27ac_Pearson', 'PCC', 'epoch', 'Model performance h3k27ac (Pearson)', model_output_folder + 'Model_' + model_id + '_' + name + '_h3k27ac_pearson.png')
-	plot_scatterplot(history, 'Dense_tf_sum_Pearson', 'val_Dense_tf_sum_Pearson', 'PCC', 'epoch', 'Model performance tf_sum (Pearson)', model_output_folder + 'Model_' + model_id + '_' + name + '_tf_sum_pearson.png')
-
-	plot_scatterplot(history, 'Dense_h3k27ac_loss', 'val_Dense_h3k27ac_loss', 'loss', 'epoch', 'Model loss h3k27ac', model_output_folder + 'Model_' + model_id + '_' + name + '_h3k27ac_loss.png')		
-	plot_scatterplot(history, 'Dense_tf_sum_loss', 'val_Dense_tf_sum_loss', 'loss', 'epoch', 'Model loss tf_sum', model_output_folder + 'Model_' + model_id + '_' + name + '_tf_sum_loss.png')
-	 
-# ====================================================================================================================
 # Helpers
 # ====================================================================================================================
-def write_to_file(line):
-	if os.path.isfile(correlation_file_path):
-		f = open(correlation_file_path, "a")
-		f.write(line)
-		f.close()
-	else:
-		f = open(correlation_file_path, "w")
-		f.write("name\ttype\tmodel\treplicate\tpcc_train_h3k27ac\tpcc_train_tf_sum\tpcc_val_h3k27ac\tpcc_val_tf_sum\tpcc_test_h3k27ac\tpcc_test_tf_sum\n")
-		f.write(line)
-		f.close()
-
 def save_model(model_name, model, history, model_output_folder):
 	# Save the model and history
 	model_json = model.to_json()
@@ -514,3 +375,36 @@ def save_model(model_name, model, history, model_output_folder):
 	
 	with open(model_output_folder + 'Model_' + model_name + '_history', 'wb') as file_pi:
 	    pickle.dump(history.history, file_pi)
+
+def plot_confusion_matrix(model_name, model, fasta_file, activity_file, homolog_dir, num_samples):
+	# Load the activity data
+	Y = np.array([])
+	
+	count = 0
+	for x,y in data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, use_homologs=False, order=True):
+		Y = np.concatenate((Y, y), axis=0)
+		count += 1
+		if count > (num_samples / batch_size):
+			break
+			
+	# Get model predictions
+	data_generator = data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, use_homologs=False, order=True)
+	Y_pred = model.predict(data_generator, steps=math.ceil(num_samples / batch_size))
+	
+	Y_pred[Y_pred <= 0.5] = 0.
+	Y_pred[Y_pred > 0.5] = 1.
+
+	ConfusionMatrixDisplay.from_predictions(Y, Y_pred)
+	plt.savefig(model_name + "_confusionmatrix.png")
+	plt.clf()
+	
+	display = PrecisionRecallDisplay.from_predictions(Y, Y_pred, name="LinearSVC")
+	_ = display.ax_.set_title("2-class Precision-Recall curve")
+	plt.savefig(model_name + "_pr_curve.png")
+	
+	fpr, tpr, thresholds = roc_curve(Y, Y_pred)
+	print(auc(fpr, tpr))
+	
+	print(average_precision_score(Y, Y_pred))
+	
+	

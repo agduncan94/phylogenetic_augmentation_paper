@@ -9,4 +9,9 @@ library(tidyverse)
 # Load the tomtom data
 tomtom_res <- read_tsv("~/Downloads/tomtom.tsv")
 
-tomtom_res %>% filter('p-value' < 0.05)
+# Filter for significant hits
+tomtom_res_filtered <- tomtom_res %>% filter(`E-value` < 0.05)
+num_significant_hits <- length(unique(tomtom_res_filtered$Query_ID))
+
+# Average q-value
+tomtom_res_filtered %>% group_by(Query_ID) %>% summarise(avg_q_value = mean(`q-value`)) %>% ungroup()
