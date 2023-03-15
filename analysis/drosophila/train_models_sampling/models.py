@@ -325,7 +325,7 @@ def SimpleModel():
 def train(model, model_type, use_homologs, replicate, sample_percent):
 	# Parameters
 	epochs = 100
-	fine_tune_epochs = 5
+	fine_tune_epochs = 10
 	early_stop = 10
 	
 	# Create a unique identifier
