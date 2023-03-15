@@ -3,7 +3,7 @@ library(tidyverse)
 library(cowplot)
 
 # Read correlation file
-drosophila_corr_df <- read_tsv("./output_3/model_correlation.tsv")
+drosophila_corr_df <- read_tsv("./output/model_correlation.tsv")
 drosophila_corr_df$type <- factor(drosophila_corr_df$type)
 drosophila_corr_df$type <- fct_relevel(drosophila_corr_df$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
 
@@ -20,7 +20,7 @@ data_summary <- function(data, varname, groupnames){
   return(data_sum)
 }
 
-# Summarize the data
+# Summarize the data - VALIDATION
 drosophila_corr_summary_dev_df <- data_summary(drosophila_corr_df, varname="pcc_val_dev", 
                     groupnames=c("model", "type"))
 plot_a <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_val_dev, colour=type, fill=type)) +
@@ -40,6 +40,31 @@ plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_val_hk, colou
   theme_bw() +
   scale_color_manual(values=c('#000000','#E69F00', '#7fc97f', '#7393B3')) +
   xlab("Type") +
-  ylab("Hk validation performance (PCC)")
+  ylab("Hk test performance (PCC)")
+
+plot_grid(plot_a, plot_b, labels = "AUTO")
+
+
+# Summarize the data - TEST
+drosophila_corr_summary_dev_df <- data_summary(drosophila_corr_df, varname="pcc_test_dev", 
+                                               groupnames=c("model", "type"))
+plot_a <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_test_dev, colour=type, fill=type)) +
+  geom_point(data=drosophila_corr_df, size=2, position = position_dodge(width=0.9)) +
+  geom_errorbar(aes(ymin = pcc_test_dev-sd, ymax = pcc_test_dev+sd), width=.4, position=position_dodge(.9)) +
+  theme_bw() +
+  scale_color_manual(values=c('#000000','#E69F00', '#7fc97f', '#7393B3')) +
+  xlab("Type") +
+  ylab("Dev test performance (PCC)")
+
+
+drosophila_corr_summary_hk_df <- data_summary(drosophila_corr_df, varname="pcc_test_hk", 
+                                              groupnames=c("model", "type"))
+plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_test_hk, colour=type)) +
+  geom_point(data=drosophila_corr_df, size=2, position = position_dodge(width=0.9)) +
+  geom_errorbar(aes(ymin = pcc_test_hk-sd, ymax = pcc_test_hk+sd), width=.4, position=position_dodge(.9)) +
+  theme_bw() +
+  scale_color_manual(values=c('#000000','#E69F00', '#7fc97f', '#7393B3')) +
+  xlab("Type") +
+  ylab("Hk test performance (PCC)")
 
 plot_grid(plot_a, plot_b, labels = "AUTO")

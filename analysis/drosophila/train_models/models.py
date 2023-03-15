@@ -32,7 +32,7 @@ import utils
 tf.debugging.set_log_device_placement(False)
 file_folder = "../process_data/output/"
 homolog_dir = "../process_data/output/orthologs/"
-output_folder = "./output_3/"
+output_folder = "./output/"
 correlation_file_path = output_folder + 'model_correlation.tsv'
 batch_size = 128
 fold = 4
@@ -317,7 +317,7 @@ def SimpleModel():
 def train(model, model_type, use_homologs, replicate):
 	# Parameters
 	epochs = 100
-	fine_tune_epochs = 5
+	fine_tune_epochs = 10
 	early_stop = 10
 	
 	# Create a unique identifier
