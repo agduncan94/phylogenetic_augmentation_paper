@@ -8,7 +8,7 @@
 
 num_replicates=1
 #declare -a models=('motif_deepstarr' 'explainn' 'deepstarr' 'motif_avg' 'motif_max')
-declare -a models=('motif_deepstarr')
+declare -a models=('deepstarr' 'motif_avg' 'motif_max' 'explainn')
 
 for m in "${models[@]}"
 do

@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from Bio import SeqIO
+from Bio import SeqIO, motifs
 import numpy as np
 import random
 
@@ -95,6 +95,26 @@ class fasta:
 			return reverse_complement(seq)
 		return seq
 	
+class motif_db:
+	"""Class for PWM files"""
+	
+	def __init__(self, pfm_file_path):
+		self.pfm_file_path = pfm_file_path
+		self.motif_db = {}
+		self.read_pfm_db(self.pfm_file_path)
+		
+	def read_pfm_db(self, pfm_file_path):
+	    self.motif_db = {}
+	    fh = open(pfm_file_path)
+	    for m in motifs.parse(fh, "jaspar"):
+	        self.motif_db[m.matrix_id] = m
+	
+
+def convert_pwms_to_filter(motif):
+	pwm = motif.counts.normalize(1).log_odds()
+	pwm_np = np.array([pwm['A'], pwm['C'], pwm['G'], pwm['T']])
+	return pwm_np.T
+
 def reverse_complement(dna):
     complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
     return ''.join([complement[base] for base in dna[::-1]])

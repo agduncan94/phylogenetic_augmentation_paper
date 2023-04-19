@@ -9,7 +9,7 @@
 #num_replicates=3
 #declare -a models=('simple_cnn' 'deepstarr' 'explainn')
 
-num_replicates=1
+num_replicates=3
 declare -a models=('deepstarr')
 
 for m in "${models[@]}"

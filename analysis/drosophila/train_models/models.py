@@ -15,7 +15,7 @@ import keras
 import keras.layers as kl
 from keras.layers.convolutional import MaxPooling1D
 from keras.layers.core import Dropout, Activation, Flatten
-from keras.layers import BatchNormalization
+from keras.layers import BatchNormalization, GlobalMaxPooling1D
 from keras.callbacks import EarlyStopping, History
 import math
 import pickle
@@ -32,10 +32,16 @@ import utils
 tf.debugging.set_log_device_placement(False)
 file_folder = "../process_data/output/"
 homolog_dir = "../process_data/output/orthologs/"
-output_folder = "./output/"
+output_folder = "./output_motif_db_linear/"
 correlation_file_path = output_folder + 'model_correlation.tsv'
 batch_size = 128
 fold = 4
+
+SEQUENCE_SIZE = 249
+ALPHABET_SIZE = 4
+BATCH_SIZE = 128
+NUM_HOMOLOGS = 8
+MOTIF_DB_PATH = "./input/JASPAR2022_CORE_insects_non-redundant_pfms_jaspar.txt"
 
 # ====================================================================================================================
 # Common model code
@@ -128,11 +134,6 @@ def calculate_batch_size(fasta_obj, indices, batch_size, ii, fold):
 			break
 		
 	return new_batch_size
-		
-from scipy.stats import spearmanr
-def Spearman(y_true, y_pred):
-     return (tf.py_function(spearmanr, [tf.cast(y_pred, tf.float32), tf.cast(y_true, tf.float32)], Tout = tf.float32))
- 
  
 from keras import backend as K
 def Pearson(y_true, y_pred):
@@ -178,7 +179,7 @@ def DeepSTARR():
     n_conv_layer = params['n_conv_layer']
     n_add_layer = params['n_add_layer']
     
-    input = kl.Input(shape=(249, 4))
+    input = kl.Input(shape=(SEQUENCE_SIZE, ALPHABET_SIZE))
     x = kl.Conv1D(params['num_filters'], kernel_size=params['kernel_size1'],
                   padding=params['pad'],
                   name='Conv1D_1st')(input)
@@ -214,7 +215,7 @@ def DeepSTARR():
     model.compile(keras.optimizers.Adam(learning_rate=lr),
                   loss=['mse', 'mse'], # loss
                   loss_weights=[1, 1], # loss weigths to balance
-                  metrics=[Spearman, Pearson]) # additional track metric
+                  metrics=[Pearson]) # additional track metric
 
     return model
 
@@ -222,7 +223,7 @@ def ExplaiNN():
     """
     ExplaiNN architecture from Novakosky et al
     """
-    input = kl.Input(shape=(249, 4))
+    input = kl.Input(shape=(SEQUENCE_SIZE, ALPHABET_SIZE))
 	
     # Each CNN unit represents a motif
     cnns = []
@@ -260,18 +261,129 @@ def ExplaiNN():
     model.compile(keras.optimizers.Adam(learning_rate=0.002),
                   loss=['mse', 'mse'],
                   loss_weights=[1, 1],
-                  metrics=[Spearman, Pearson])
+                  metrics=[Pearson])
 
     return model
 
+def MotifDBLinearModel():
+	"""
+	A simple model with fixed motif layers intialized from DB
+	"""
+	
+	input = kl.Input(shape=(SEQUENCE_SIZE, ALPHABET_SIZE))
+	
+	# Load the motif DB
+	motif_db = utils.motif_db(MOTIF_DB_PATH)
 
-def SimpleModel():
+	# Create motif layers	
+	motif_layers = []
+	
+	for motif_id in motif_db.motif_db:
+		motif_layer = tf.keras.layers.Conv1D(
+			filters=1,
+			trainable=False,
+			kernel_size=motif_db.motif_db[motif_id].length,
+			padding="valid",
+			use_bias = False,
+			name=motif_id)(input)
+		motif_layer = BatchNormalization()(motif_layer)
+		motif_layer = GlobalMaxPooling1D()(motif_layer)
+		
+		motif_layers.append(motif_layer)
+		
+	motif_layers = kl.concatenate(motif_layers)
+		
+	tasks = ['Dev', 'Hk']
+	outputs = []
+	for task in tasks:
+		outputs.append(kl.Dense(1, activation='linear', name=str('Dense_' + task))(motif_layers))
+
+	model = keras.models.Model([input], outputs)
+	
+	# Set motif weights
+	for motif_id in motif_db.motif_db:
+		fwd_filter = utils.convert_pwms_to_filter(motif_db.motif_db[motif_id])
+		layer_params = np.expand_dims(np.dstack([fwd_filter]), axis=0)
+		model.get_layer(motif_id).set_weights(layer_params)
+	
+	model.compile(keras.optimizers.Adam(learning_rate=0.002),
+                  loss=['mse', 'mse'],
+                  loss_weights=[1, 1],
+                  metrics=[Pearson])
+	
+	return model
+
+def MotifDBDeepSTARRModel():
+	"""
+	An interpretable DeepSTARR model with a fixed motif layers intialized from DB
+	"""
+	
+	input = kl.Input(shape=(SEQUENCE_SIZE, ALPHABET_SIZE))
+	
+	# Load the motif DB
+	motif_db = utils.motif_db(MOTIF_DB_PATH)
+
+	# Create motif layers	
+	motif_layers = []
+	
+	for motif_id in motif_db.motif_db:
+		motif_layer = tf.keras.layers.Conv1D(
+			filters=1,
+			trainable=False,
+			kernel_size=motif_db.motif_db[motif_id].length,
+			padding="valid",
+			use_bias = False,
+			name=motif_id)(input)
+		motif_layer = BatchNormalization()(motif_layer)
+		motif_layer = Activation('relu')(motif_layer)
+		motif_layer = MaxPooling1D(10)(motif_layer)
+		motif_layer = Flatten()(motif_layer)
+		
+		motif_layers.append(motif_layer)
+		
+	motif_layers = kl.concatenate(motif_layers)
+	
+	# First dense layer
+	x = kl.Dense(256, name='Dense_a')(motif_layers)
+	x = BatchNormalization()(x)
+	x = Activation('relu')(x)
+	x = Dropout(0.4)(x)
+	
+	# Second dense layer
+	x = kl.Dense(256, name='Dense_b')(x)
+	x = BatchNormalization()(x)
+	x = Activation('relu')(x)
+	x = Dropout(0.4)(x)
+	
+	bottleneck = x
+		
+	tasks = ['Dev', 'Hk']
+	outputs = []
+	for task in tasks:
+		outputs.append(kl.Dense(1, activation='linear', name=str('Dense_' + task))(bottleneck))
+
+	model = keras.models.Model([input], outputs)
+	
+	# Set motif weights
+	for motif_id in motif_db.motif_db:
+		fwd_filter = utils.convert_pwms_to_filter(motif_db.motif_db[motif_id])
+		layer_params = np.expand_dims(np.dstack([fwd_filter]), axis=0)
+		model.get_layer(motif_id).set_weights(layer_params)
+	
+	model.compile(keras.optimizers.Adam(learning_rate=0.002),
+                  loss=['mse', 'mse'],
+                  loss_weights=[1, 1],
+                  metrics=[Pearson])
+	
+	return model
+
+def MotifLearnedDeepSTARR():
     """
     Simple architecture 
     """
     lr = 0.002
 	
-    input = kl.Input(shape=(249, 4))
+    input = kl.Input(shape=(SEQUENCE_SIZE, ALPHABET_SIZE))
 	
 	# Convolutional layer
     x = kl.Conv1D(128, kernel_size=19,
@@ -279,7 +391,54 @@ def SimpleModel():
                   name='Conv1D')(input)
     x = BatchNormalization()(x)
     x = Activation('exponential')(x)
-    x = MaxPooling1D(10)(x) # try 10, peter did 24
+    x = MaxPooling1D(10)(x)
+    
+    x = Flatten()(x)
+    
+    # First dense layer
+    x = kl.Dense(256, name='Dense_a')(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = Dropout(0.4)(x)
+	
+    # Second dense layer
+    x = kl.Dense(256, name='Dense_b')(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = Dropout(0.4)(x)
+	
+    bottleneck = x
+    
+    # heads per task (Dev and Hk enhancer activities)
+    tasks = ['Dev', 'Hk']
+    outputs = []
+    for task in tasks:
+        outputs.append(kl.Dense(1, activation='linear', name=str('Dense_' + task))(bottleneck))
+
+    model = keras.models.Model([input], outputs)
+    model.compile(keras.optimizers.Adam(learning_rate=lr),
+                  loss=['mse', 'mse'], # loss
+                  loss_weights=[1, 1], # loss weigths to balance
+                  metrics=[Pearson]) # additional track metric
+
+    return model
+
+# TODO: Need to remake into a motif deepstarr
+def SimpleModel():
+    """
+    Simple architecture 
+    """
+    lr = 0.002
+	
+    input = kl.Input(shape=(SEQUENCE_SIZE, ALPHABET_SIZE))
+	
+	# Convolutional layer
+    x = kl.Conv1D(128, kernel_size=19,
+                  padding=params['pad'],
+                  name='Conv1D')(input)
+    x = BatchNormalization()(x)
+    x = Activation('exponential')(x)
+    x = MaxPooling1D(10)(x)
     
     x = Flatten()(x)
     
@@ -307,7 +466,7 @@ def SimpleModel():
     model.compile(keras.optimizers.Adam(learning_rate=lr),
                   loss=['mse', 'mse'], # loss
                   loss_weights=[1, 1], # loss weigths to balance
-                  metrics=[Spearman, Pearson]) # additional track metric
+                  metrics=[Pearson]) # additional track metric
 
     return model
 
@@ -346,7 +505,7 @@ def train(model, model_type, use_homologs, replicate):
                                              History()])
 	
 	# Save results
-	epochs_total = len(history.history['val_Dense_Dev_Spearman'])
+	epochs_total = len(history.history['val_Dense_Dev_Pearson'])
 	if use_homologs:
 		save_model(model_id + "_homologs", model, history, model_output_folder)
 		test_correlation_dev, test_correlation_hk = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_homologs_Test", num_samples_test)
@@ -366,7 +525,7 @@ def train(model, model_type, use_homologs, replicate):
 	model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=1e-4, weight_decay=1e-6),
 			   loss=['mse', 'mse'],
 			   loss_weights=[1,1],
-			   metrics=[Spearman, Pearson])
+			   metrics=[Pearson])
 	
 	if use_homologs:
 		datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_dir, num_samples_train, batch_size, True, False, fold)
@@ -415,6 +574,18 @@ def train_simple_model(use_homologs, replicate, model_type="SimpleCnn"):
 	model = SimpleModel()
 	train(model, model_type, use_homologs, replicate)
 	
+def train_motif_db_linear_model(use_homologs, replicate, model_type="MotifDBLinearModel"):
+	model = MotifDBLinearModel()
+	train(model, model_type, use_homologs, replicate)
+	
+def train_motif_db_deepstarr_model(use_homologs, replicate, model_type="MotifDBDeepSTARRModel"):
+	model = MotifDBDeepSTARRModel()
+	train(model, model_type, use_homologs, replicate)
+
+def train_motif_learned_deepstarr_model(use_homologs, replicate, model_type="MotifLearnedDeepSTARRModel"):
+	model = MotifLearnedDeepSTARR()
+	train(model, model_type, use_homologs, replicate)
+
 # ====================================================================================================================
 # Plot model performance
 # ====================================================================================================================
@@ -479,9 +650,6 @@ def plot_scatterplot(history, a, b, x, y, title, filename):
 	plt.clf()
 	 
 def plot_scatterplots(history, model_output_folder, model_id, name):
-	plot_scatterplot(history, 'Dense_Dev_Spearman', 'val_Dense_Dev_Spearman', 'SCC', 'epoch', 'Model performance Dev (Spearman)', model_output_folder + 'Model_' + model_id + '_' + name + '_Dev_spearman.png')
-	plot_scatterplot(history, 'Dense_Hk_Spearman', 'val_Dense_Hk_Spearman', 'SCC', 'epoch', 'Model performance Hk (Spearman)', model_output_folder + 'Model_' + model_id + '_' + name + '_Hk_spearman.png')
-	
 	plot_scatterplot(history, 'Dense_Dev_Pearson', 'val_Dense_Dev_Pearson', 'PCC', 'epoch', 'Model performance Dev (Pearson)', model_output_folder + 'Model_' + model_id + '_' + name + '_Dev_pearson.png')
 	plot_scatterplot(history, 'Dense_Hk_Pearson', 'val_Dense_Hk_Pearson', 'PCC', 'epoch', 'Model performance Hk (Pearson)', model_output_folder + 'Model_' + model_id + '_' + name + '_Hk_pearson.png')
 

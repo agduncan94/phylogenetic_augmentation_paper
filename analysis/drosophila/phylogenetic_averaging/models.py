@@ -32,7 +32,7 @@ import utils
 tf.debugging.set_log_device_placement(False)
 file_folder = "../process_data/output/all_orthologs/"
 homolog_dir = "../process_data/output/all_orthologs/orthologs/"
-output_folder = "./output/"
+output_folder = "./output_one_homolog_each_epoch/"
 correlation_file_path = output_folder + 'model_correlation.tsv'
 
 SEQUENCE_SIZE = 249
@@ -169,7 +169,7 @@ def ExplaiNNEncoder():
 	
 	model = keras.models.Model([input], encoder)
 	
-	print(model.summary())
+	#print(model.summary())
 	
 	return model
 
@@ -226,7 +226,7 @@ def DeepSTARREncoder():
 
 	model = keras.models.Model([input], encoder)
 	
-	print(model.summary())
+	#print(model.summary())
 
 	return model
 
@@ -255,7 +255,7 @@ def MotifEncoder():
 	
 	model = keras.models.Model([input], encoder)
 	
-	print(model.summary())
+	#print(model.summary())
 	
 	return model
 
@@ -296,7 +296,7 @@ def MotifDeepSTARREncoder():
 	
 	model = keras.models.Model([input], encoder)
 	
-	print(model.summary())
+	#print(model.summary())
 	
 	return model
 	
@@ -330,7 +330,7 @@ def CommonModel(encoder, pooling="average"):
 				  loss_weights=[1, 1],
 				  metrics=[Pearson])
 	
-	print(model.summary())
+	#print(model.summary())
 	
 	return model
 

@@ -26,3 +26,9 @@ elif model_type == "explainn":
 	models.train_explainn(use_homologs, replicate, model_type)
 elif model_type == "simple_cnn":
 	models.train_simple_model(use_homologs, replicate, model_type)
+elif model_type == "motif_db_linear":
+	models.train_motif_db_linear_model(use_homologs, replicate, model_type)	
+elif model_type == "motif_db_deepstarr":
+	models.train_motif_db_deepstarr_model(use_homologs, replicate, model_type)	
+elif model_type == "motif_learned_deepstarr":
+	models.train_motif_learned_deepstarr_model(use_homologs, replicate, model_type)	
