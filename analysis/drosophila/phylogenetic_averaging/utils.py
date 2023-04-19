@@ -55,26 +55,20 @@ class fasta:
 			name = self.fasta_names[ii]
 			homologs = self.fasta_dict[name]
 			homolog_seqs = []
-			seq_id = np.random.choice(range(0, len(homologs)), 1)[0]
 			
-			for val in range(num_homologs):
+			# If insufficient homologs, replace with original sequence
+			if len(homologs) >= num_homologs:
+				seq_ids = np.random.choice(range(0, len(homologs)), num_homologs, replace=False)
+			else:
+				seq_ids = np.random.choice(range(0, len(homologs)), len(homologs), replace=False)
+				seqs_to_add = num_homologs - len(homologs)
+				for val in range(1, seqs_to_add + 1):
+					seq_ids = np.append(seq_ids, 0)
+			
+			for seq_id in seq_ids:
 				seq = homologs[seq_id]
 				seq = self.augment_data(seq)
 				homolog_seqs.append(seq)
-			
-			# If insufficient homologs, replace with original sequence
-			#if len(homologs) >= num_homologs:
-			#	seq_ids = np.random.choice(range(0, len(homologs)), num_homologs, replace=False)
-			#else:
-			#	seq_ids = np.random.choice(range(0, len(homologs)), len(homologs), replace=False)
-			#	seqs_to_add = num_homologs - len(homologs)
-			#	for val in range(1, seqs_to_add + 1):
-			#		seq_ids = np.append(seq_ids, 0)
-			
-			#for seq_id in seq_ids:
-			#	seq = homologs[seq_id]
-			#	seq = self.augment_data(seq)
-			#	homolog_seqs.append(seq)
 			
 			# One hot encode the homologs
 			one_hot_data = []
