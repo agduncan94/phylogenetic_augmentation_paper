@@ -7,7 +7,7 @@
 # ####################################################################################################################
 
 num_replicates=1
-declare -a models=('deepstarr' 'motif_deepstarr' 'explainn')
+declare -a models=('deepstarr')
 
 for m in "${models[@]}"
 do

@@ -1,7 +1,7 @@
 # ####################################################################################################################
 # models.py
 #
-# Class to train Keras models on Drosophila S2 data
+# Class to train Keras models on Drosophila S2 and CHEF data
 # ####################################################################################################################
 
 # ====================================================================================================================
@@ -36,29 +36,30 @@ ALPHABET_SIZE = 4
 # ====================================================================================================================
 # Common model code
 # ====================================================================================================================
-def get_batch(fasta_obj, Y_0, Y_1, indices, batch_size, use_homologs=False, fold=1):
+def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=False, fold=1):
 	"""
 	Creates a batch of the input and one-hot encodes the sequences
 	"""
 	sequence_length = len(fasta_obj.fasta_dict[fasta_obj.fasta_names[0]][0])
-	
+
 	# One-hot encode the sequences
 	seqs, seq_multiplier = fasta_obj.one_hot_encode_batch(indices, sequence_length, use_homologs, fold)
 	X = np.nan_to_num(seqs)
 	X_reshaped = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
 	
 	# Get batch of activity values
-	y_0_batch = Y_0[indices]
-	y_1_batch = Y_1[indices]
+	Y_batch = []
+	for i, task in enumerate(tasks):
+		Y_batch.append(Measurements[Measurements.columns[i]][indices])
 	
 	if use_homologs:
-		Y = [np.repeat(y_0_batch.to_numpy(), seq_multiplier), np.repeat(y_1_batch.to_numpy(), seq_multiplier)]
+		Y = [np.repeat(item.to_numpy(), seq_multiplier) for item in Y_batch]
 	else:
-		Y = [y_0_batch.to_numpy(), y_1_batch.to_numpy()]
+		Y = [item.to_numpy()for item in Y_batch]
 	
 	return X_reshaped, Y
 
-def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, shuffle_epoch_end=True, use_homologs=False, fold=1, order=False):
+def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks, shuffle_epoch_end=True, use_homologs=False, fold=1, order=False):
 	"""
 	Generator function for loading input data in batches
 	"""
@@ -75,8 +76,6 @@ def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, shuffl
 	
 	# Read measurement file
 	Measurements = pd.read_table(y_file)
-	Y_0 = Measurements[Measurements.columns[0]]
-	Y_1 = Measurements[Measurements.columns[1]]
 	
 	# Create the batch indices
 	n_data = len(fasta_obj.fasta_names)
@@ -93,7 +92,7 @@ def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, shuffl
 		else:
 			new_batch_size = batch_size
 		
-		yield get_batch(fasta_obj, Y_0, Y_1, indices[ii:ii + new_batch_size], new_batch_size, use_homologs, fold)
+		yield get_batch(fasta_obj, Measurements, tasks, indices[ii:ii + new_batch_size], new_batch_size, use_homologs, fold)
 		ii += new_batch_size
 		if ii >= num_samples:
 			ii = 0
@@ -337,8 +336,8 @@ def train(model, model_type, use_homologs, replicate, file_folder, homolog_folde
 	num_samples_test = utils.count_lines_in_file(file_folder + "Sequences_activity_Test.txt") - 1
 
 	# Data for train and validation sets
-	datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_folder, num_samples_train, batch_size, True, use_homologs, fold)
-	datagen_val = data_gen(file_folder + "Sequences_Val.fa", file_folder + "Sequences_activity_Val.txt", homolog_folder, num_samples_val, batch_size, True, False, fold)
+	datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_folder, num_samples_train, batch_size, tasks, True, use_homologs, fold)
+	datagen_val = data_gen(file_folder + "Sequences_Val.fa", file_folder + "Sequences_activity_Val.txt", homolog_folder, num_samples_val, batch_size, tasks, True, False, fold)
 
 	# Fit model
 	history=model.fit(datagen_train,
@@ -378,7 +377,7 @@ def train(model, model_type, use_homologs, replicate, file_folder, homolog_folde
 	
 	# Update data generator to not use homologs (not needed for fine-tuning)
 	if use_homologs:
-		datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_folder, num_samples_train, batch_size, True, False, fold)
+		datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_folder, num_samples_train, batch_size, tasks, True, False, fold)
 	
 	fine_tune_history = model.fit(datagen_train,
 							   validation_data=datagen_val,
@@ -439,7 +438,7 @@ def plot_prediction_vs_actual(model, fasta_file, activity_file, output_file_pref
 		Y.append(np.array([]))
 	
 	count = 0
-	for x,y in data_gen(fasta_file, activity_file, homolog_folder, num_samples, batch_size, use_homologs=use_homologs, order=True):
+	for x,y in data_gen(fasta_file, activity_file, homolog_folder, num_samples, batch_size, tasks, use_homologs=use_homologs, order=True):
 		for i, task in enumerate(tasks):
 			Y[i] = np.concatenate((Y[i], y[i]), axis=0)
 		count += 1
@@ -447,7 +446,7 @@ def plot_prediction_vs_actual(model, fasta_file, activity_file, output_file_pref
 			break
 	
 	# Get model predictions
-	data_generator = data_gen(fasta_file, activity_file, homolog_folder, num_samples, batch_size, use_homologs=use_homologs, order=True)
+	data_generator = data_gen(fasta_file, activity_file, homolog_folder, num_samples, batch_size, tasks, use_homologs=use_homologs, order=True)
 	Y_pred = model.predict(data_generator, steps=math.ceil(num_samples / batch_size))
 	
 	correlations = []

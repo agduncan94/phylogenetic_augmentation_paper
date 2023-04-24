@@ -53,7 +53,7 @@ class fasta:
 				name = values[0]
 				split_name = name.split("::")[0]
 				seq = values[1].upper()
-				if 'N' not in seq:
+				if 'N' not in seq and split_name in self.fasta_dict:
 					self.fasta_dict[split_name].append(seq)
 	
 	def one_hot_encode_batch(self, indices, standardize=None, use_homologs=False, fold=1):
