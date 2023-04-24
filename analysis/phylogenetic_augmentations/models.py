@@ -150,6 +150,75 @@ def Pearson(y_true, y_pred):
 # Models encoders and training task
 # ====================================================================================================================
 
+def BassetEncoder(sequence_size):
+	"""Encoder for Basset"""
+	params = {'epochs': 100,
+				  'early_stop': 10,
+				  'kernel_size1': 19,
+				  'kernel_size2': 11,
+				  'kernel_size3': 7,
+				  'num_filters1': 300,
+				  'num_filters2': 200,
+				  'num_filters3': 200,
+				  'max_pool1': 3,
+				  'max_pool2': 4,
+				  'max_pool3': 4,
+				  'n_add_layer': 2,
+				  'dropout_prob': 0.3,
+				  'dense_neurons1': 1000,
+				  'dense_neurons2': 1000,
+				  'pad':'same'}
+	
+	# Input shape
+	input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
+	
+	# Define encoder to create embedding vector
+	
+	# First conv layer
+	x = kl.Conv1D(params['num_filters1'], kernel_size=params['kernel_size1'],
+				  padding=params['pad'],
+				  name='Conv1D_1')(input_shape)
+	x = BatchNormalization()(x)
+	x = Activation('relu')(x)
+	x = MaxPooling1D(params['max_pool1'])(x)
+	
+	# Second conv layer
+	x = kl.Conv1D(params['num_filters2'], kernel_size=params['kernel_size2'],
+				  padding=params['pad'],
+				  name='Conv1D_2')(x)
+	x = BatchNormalization()(x)
+	x = Activation('relu')(x)
+	x = MaxPooling1D(params['max_pool2'])(x)
+	
+	# Third conv layer
+	x = kl.Conv1D(params['num_filters3'], kernel_size=params['kernel_size3'],
+				  padding=params['pad'],
+				  name='Conv1D_3')(x)
+	x = BatchNormalization()(x)
+	x = Activation('relu')(x)
+	x = MaxPooling1D(params['max_pool3'])(x)
+	
+	x = Flatten()(x)
+	
+	# First linear layer
+	x = kl.Dense(params['dense_neurons1'],
+				 name=str('Dense_'))(x)
+	x = BatchNormalization()(x)
+	x = Activation('relu')(x)
+	x = Dropout(params['dropout_prob'])(x)
+
+	# Second linear layer
+	x = kl.Dense(params['dense_neurons2'],
+				 name=str('Dense_'))(x)
+	x = BatchNormalization()(x)
+	x = Activation('relu')(x)
+	x = Dropout(params['dropout_prob'])(x)
+	
+	encoder = x
+	
+	return input_shape, encoder
+	
+	
 def DeepSTARREncoder(sequence_size):
 	"""Encoder for DeepSTARR from de Almeida et al"""
 	
@@ -304,6 +373,24 @@ def n_regression_head(input_shape, encoder, tasks):
 		
 	return model
 
+def basset_head(input_shape, encoder, tasks):
+	"""Basset head that supports 164 binary predictions"""
+	params = {
+			'lr': 0.002,
+			'num_classes': 164
+		}
+	
+	# Create prediction head per task
+	outputs = []
+	outputs.append(kl.Dense(params['num_classes'], activation='sigmoid', name=str('Dense_binary'))(encoder))
+
+	model = keras.models.Model([input_shape], outputs)
+	model.compile(keras.optimizers.Adam(learning_rate=params['lr']),
+				  loss=['binary_crossentropy'],
+				  metrics=['accuracy'])
+		
+	return model
+
 # ====================================================================================================================
 # Train models
 # ====================================================================================================================
@@ -425,6 +512,11 @@ def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolo
 def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="MotifDeepSTARR"):
 	input_shape, encoder = MotifDeepSTARREncoder(sequence_size)
 	model = n_regression_head(input_shape, encoder, tasks)
+	train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks)
+	
+def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="Basset"):
+	input_shape, encoder = MotifDeepSTARREncoder(sequence_size)
+	model = basset_head(input_shape, encoder, tasks)
 	train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks)
 	
 # ====================================================================================================================
