@@ -58,7 +58,7 @@ def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=
 	
 	return X_reshaped, Y
 
-def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks, shuffle_epoch_end=True, use_homologs=False, fold=1, order=False):
+def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks, shuffle_epoch_end=True, use_homologs=False, fold=1, order=False, filtered_indices=None):
 	"""
 	Generator function for loading input data in batches
 	"""
@@ -73,8 +73,15 @@ def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks,
 			if filename.endswith(".fa"):
 				fasta_obj.add_homolog_sequences(os.path.join(homolog_folder, filename))
 	
+	
 	# Read measurement file
 	Measurements = pd.read_table(y_file)
+	
+	# Sample the FASTA structure and measurements
+	if (filtered_indices is not None):
+		fasta_obj.sample_fasta(filtered_indices)
+		Measurements = Measurements.iloc[filtered_indices]
+		Measurements.reset_index(drop=True, inplace=True)
 	
 	# Create the batch indices
 	n_data = len(fasta_obj.fasta_names)
@@ -301,7 +308,7 @@ def n_regression_head(input_shape, encoder, tasks):
 # Train models
 # ====================================================================================================================
 
-def train(model, model_type, use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks, batch_size=128):
+def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, batch_size=128):
 	# Parameters
 	epochs = 100
 	early_stop = 10
@@ -309,7 +316,7 @@ def train(model, model_type, use_homologs, replicate, file_folder, homolog_folde
 	fold = 4
 
 	# Create a unique identifier
-	model_id = model_type + "_rep" + str(replicate)
+	model_id = model_type + "_rep" + str(replicate) + "_frac" + str(sample_fraction)
 	
 	# Create folder for output
 	model_output_folder = output_folder + model_id + "/"
@@ -319,16 +326,20 @@ def train(model, model_type, use_homologs, replicate, file_folder, homolog_folde
 	num_samples_train = utils.count_lines_in_file(file_folder + "Sequences_activity_Train.txt") - 1
 	num_samples_val = utils.count_lines_in_file(file_folder + "Sequences_activity_Val.txt") - 1
 	num_samples_test = utils.count_lines_in_file(file_folder + "Sequences_activity_Test.txt") - 1
+	
+	# Sample a reduced set of sequences for training
+	reduced_num_samples_train = int(num_samples_train * sample_fraction)
+	filtered_indices = np.random.choice(list(range(num_samples_train)), reduced_num_samples_train, replace=False)
 
 	# Data for train and validation sets
-	datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_folder, num_samples_train, batch_size, tasks, True, use_homologs, fold)
-	datagen_val = data_gen(file_folder + "Sequences_Val.fa", file_folder + "Sequences_activity_Val.txt", homolog_folder, num_samples_val, batch_size, tasks, True, False, fold)
+	datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_folder, reduced_num_samples_train, batch_size, tasks, True, use_homologs, fold, False, filtered_indices)
+	datagen_val = data_gen(file_folder + "Sequences_Val.fa", file_folder + "Sequences_activity_Val.txt", homolog_folder, num_samples_val, batch_size, tasks, True, False, fold, False, None)
 
 	# Fit model
 	history=model.fit(datagen_train,
 								  validation_data=datagen_val,
 								  epochs=epochs,
-								  steps_per_epoch=math.ceil(num_samples_train / batch_size),
+								  steps_per_epoch=math.ceil(reduced_num_samples_train / batch_size),
 								  validation_steps=math.ceil(num_samples_val / batch_size),
 								  callbacks=[EarlyStopping(patience=early_stop, monitor="val_loss", restore_best_weights=True),
 											 History()])
@@ -349,7 +360,7 @@ def train(model, model_type, use_homologs, replicate, file_folder, homolog_folde
 																   False,
 																   batch_size)
 
-	write_to_file(model_id, augmentation_type, model_type, replicate, history, tasks, test_correlations, output_folder)
+	write_to_file(model_id, augmentation_type, model_type, replicate, sample_fraction, history, tasks, test_correlations, output_folder)
 	
 	# Save plots for performance and loss
 	plot_scatterplots(history, model_output_folder, model_id, augmentation_type, tasks)
@@ -362,11 +373,11 @@ def train(model, model_type, use_homologs, replicate, file_folder, homolog_folde
 	
 	# Update data generator to not use homologs (not needed for fine-tuning)
 	if use_homologs:
-		datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_folder, num_samples_train, batch_size, tasks, True, False, fold)
+		datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt", homolog_folder, reduced_num_samples_train, batch_size, tasks, True, False, fold, False, filtered_indices)
 	
 	fine_tune_history = model.fit(datagen_train,
 							   validation_data=datagen_val,
-							   steps_per_epoch=math.ceil(num_samples_train / batch_size),
+							   steps_per_epoch=math.ceil(reduced_num_samples_train / batch_size),
 							   validation_steps=math.ceil(num_samples_val / batch_size),
 							   epochs=fine_tune_epochs)
 	
@@ -385,7 +396,7 @@ def train(model, model_type, use_homologs, replicate, file_folder, homolog_folde
 																	tasks,
 																	False,
 																	batch_size)
-	write_to_file(model_id, augmentation_ft_type, model_type, replicate, fine_tune_history, tasks, test_correlations, output_folder)
+	write_to_file(model_id, augmentation_ft_type, model_type, replicate, sample_fraction, fine_tune_history, tasks, test_correlations, output_folder)
 	
 	# Save the model and history
 	model_json = model.to_json()
@@ -401,20 +412,20 @@ def train(model, model_type, use_homologs, replicate, file_folder, homolog_folde
 	plot_scatterplots(fine_tune_history, model_output_folder, model_id, augmentation_ft_type, tasks)
 
 
-def train_deepstarr(use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="DeepSTARR"):
+def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="DeepSTARR"):
 	input_shape, encoder = DeepSTARREncoder(sequence_size)
 	model = n_regression_head(input_shape, encoder, tasks)
-	train(model, model_type, use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks)
+	train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks)
 
-def train_explainn(use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="ExplaiNN"):
+def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="ExplaiNN"):
 	input_shape, encoder = ExplaiNNEncoder(sequence_size)
 	model = n_regression_head(input_shape, encoder, tasks)
-	train(model, model_type, use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks)
+	train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks)
 	
-def train_motif_deepstarr(use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="MotifDeepSTARR"):
+def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="MotifDeepSTARR"):
 	input_shape, encoder = MotifDeepSTARREncoder(sequence_size)
 	model = n_regression_head(input_shape, encoder, tasks)
-	train(model, model_type, use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks)
+	train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks)
 	
 # ====================================================================================================================
 # Plot model performance for dual regression
@@ -475,9 +486,9 @@ def plot_scatterplots(history, model_output_folder, model_id, name, tasks):
 # ====================================================================================================================
 # Helpers
 # ====================================================================================================================
-def write_to_file(model_id, augmentation_type, model_type, replicate, history, tasks, test_correlations, output_folder):
+def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fraction, history, tasks, test_correlations, output_folder):
 	correlation_file_path = output_folder + 'model_correlation.tsv'
-	line = model_id + "\t" + augmentation_type + "\t" + model_type + "\t" + str(replicate) + "\t"
+	line = model_id + "\t" + augmentation_type + "\t" + model_type + "\t" + str(replicate) + "\t" + str(sample_fraction) + "\t"
 	
 	epochs_total = len(history.history['val_Dense_' + tasks[0] + '_Pearson'])
 	for i, task in enumerate(tasks):
@@ -496,7 +507,7 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, history, t
 		f.close()
 	else:
 		f = open(correlation_file_path, "w")
-		header_line = "name\ttype\tmodel\treplicate\t"
+		header_line = "name\ttype\tmodel\treplicate\tfraction\t"
 		for i, task in enumerate(tasks):
 			header_line += "pcc_train_" + task + "\t"
 		for i, task in enumerate(tasks):

@@ -22,13 +22,14 @@ homolog_folder = "../process_data/drosophila/output/orthologs/"
 output_folder = "./output_drosophila/"
 tasks = ['Dev', 'Hk']
 sequence_size = 249
+sample_fraction = 1.0
 
 # ====================================================================================================================
 # Main code
 # ====================================================================================================================
 if model_type == "deepstarr":
-	models.train_deepstarr(use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type)
+	models.train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type)
 elif model_type == "explainn":
-	models.train_explainn(use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type)
+	models.train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type)
 elif model_type == "motif_deepstarr":
-	models.train_motif_deepstarr(use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type)
+	models.train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type)

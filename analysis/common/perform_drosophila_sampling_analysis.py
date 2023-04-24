@@ -1,5 +1,5 @@
 # ####################################################################################################################
-# perform_chef_augmentation_analysis.py
+# perform_drosophila_sampling_analysis.py
 #
 # Train model using the STARR-seq data
 # ####################################################################################################################
@@ -16,13 +16,13 @@ import models
 model_type = sys.argv[1]
 replicate = sys.argv[2]
 use_homologs = bool(int(sys.argv[3]))
+sample_fraction = float(sys.argv[4])
 
-file_folder = "../process_data/chef/output/"
-homolog_folder = "../process_data/chef/output/orthologs/"
-output_folder = "./output_chef/"
-tasks = ['h3k27ac_log2_enrichment', 'tf_sum']
-sequence_size = 700
-sample_fraction = 1.0
+file_folder = "../process_data/drosophila/output/"
+homolog_folder = "../process_data/drosophila/output/orthologs/"
+output_folder = "./output_drosophila/"
+tasks = ['Dev', 'Hk']
+sequence_size = 249
 
 # ====================================================================================================================
 # Main code
