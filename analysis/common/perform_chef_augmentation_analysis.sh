@@ -6,7 +6,7 @@
 # Run each model on the same CHEF data. Three replicates per model.
 # ####################################################################################################################
 
-num_replicates=1
+num_replicates=3
 declare -a models=('deepstarr')
 
 for m in "${models[@]}"
