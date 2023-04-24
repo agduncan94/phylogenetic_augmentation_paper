@@ -30,7 +30,6 @@ import utils
 # Global settings and parameters
 # ====================================================================================================================
 tf.debugging.set_log_device_placement(False)
-
 ALPHABET_SIZE = 4
 
 # ====================================================================================================================
@@ -42,12 +41,12 @@ def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=
 	"""
 	sequence_length = len(fasta_obj.fasta_dict[fasta_obj.fasta_names[0]][0])
 
-	# One-hot encode the sequences
+	# One-hot encode a batch of sequences
 	seqs, seq_multiplier = fasta_obj.one_hot_encode_batch(indices, sequence_length, use_homologs, fold)
 	X = np.nan_to_num(seqs)
 	X_reshaped = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
 	
-	# Get batch of activity values
+	# Retrieve batch of measurements
 	Y_batch = []
 	for i, task in enumerate(tasks):
 		Y_batch.append(Measurements[Measurements.columns[i]][indices])
@@ -55,7 +54,7 @@ def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=
 	if use_homologs:
 		Y = [np.repeat(item.to_numpy(), seq_multiplier) for item in Y_batch]
 	else:
-		Y = [item.to_numpy()for item in Y_batch]
+		Y = [item.to_numpy() for item in Y_batch]
 	
 	return X_reshaped, Y
 
@@ -63,10 +62,10 @@ def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks,
 	"""
 	Generator function for loading input data in batches
 	"""
-	# Read fasta file
+	# Read FASTA file
 	fasta_obj = utils.fasta(fasta_file)
 		
-	# Add homologs
+	# Add homologs to FASTA data structure
 	if use_homologs:
 		directory = os.fsencode(homolog_folder)
 		for file in os.listdir(directory):
@@ -125,6 +124,9 @@ def calculate_batch_size(fasta_obj, indices, batch_size, ii, fold):
  
 from keras import backend as K
 def Pearson(y_true, y_pred):
+    """
+    Calculate the correlation between measured and predicted
+    """
     x = y_true
     y = y_pred
     mx = K.mean(x, axis=0)
@@ -141,7 +143,7 @@ def Pearson(y_true, y_pred):
 # Models encoders and training task
 # ====================================================================================================================
 
-def DeepSTARREncoder(sequence_size, tasks):
+def DeepSTARREncoder(sequence_size):
 	"""Encoder for DeepSTARR from de Almeida et al"""
 	
 	params = {'epochs': 100,
@@ -150,7 +152,6 @@ def DeepSTARREncoder(sequence_size, tasks):
 				  'kernel_size2': 3,
 				  'kernel_size3': 5,
 				  'kernel_size4': 3,
-				  'lr': 0.002,
 				  'num_filters': 256,
 				  'num_filters2': 60,
 				  'num_filters3': 60,
@@ -163,12 +164,12 @@ def DeepSTARREncoder(sequence_size, tasks):
 				  'pad':'same'}
 	
 	# Input shape
-	input = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
+	input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
 	
 	# Define encoder to create embedding vector
 	x = kl.Conv1D(params['num_filters'], kernel_size=params['kernel_size1'],
 				  padding=params['pad'],
-				  name='Conv1D_1st')(input)
+				  name='Conv1D_1st')(input_shape)
 	x = BatchNormalization()(x)
 	x = Activation('relu')(x)
 	x = MaxPooling1D(2)(x)
@@ -192,20 +193,9 @@ def DeepSTARREncoder(sequence_size, tasks):
 		x = Dropout(params['dropout_prob'])(x)
 	encoder = x
 	
-	# heads per task
-	outputs = []
-	for task in tasks:
-		outputs.append(kl.Dense(1, activation='linear', name=str('Dense_' + task))(encoder))
+	return input_shape, encoder
 
-	model = keras.models.Model([input], outputs)
-	model.compile(keras.optimizers.Adam(learning_rate=params['lr']),
-				  loss=['mse'] * len(tasks),
-				  loss_weights=[1] * len(tasks),
-				  metrics=[Pearson])
-		
-	return model
-
-def ExplaiNNEncoder(sequence_size, tasks):
+def ExplaiNNEncoder(sequence_size):
 	"""Encoder for ExplaiNN from Novakosky et al"""
 	# Define parameters for the encoder
 	params = {
@@ -213,20 +203,19 @@ def ExplaiNNEncoder(sequence_size, tasks):
 			'conv1_kernel_size': 19,
 			'conv1_shape': 128,
 			'conv1_pool_size': 10,
-			'num_of_motifs': 100,
-			'lr': 0.002
+			'num_of_motifs': 100
 		}
 	
 	
 	# Input shape 
-	input = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
+	input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
 	
 	# Each CNN unit represents a motif
 	encoder = []
 	
 	for i in range(params['num_of_motifs']):		
 		# 1st convolutional layer
-		cnn_x = kl.Conv1D(1, kernel_size=params['conv1_shape'], padding='same', name=str('cnn_' + str(i)))(input)
+		cnn_x = kl.Conv1D(1, kernel_size=params['conv1_shape'], padding='same', name=str('cnn_' + str(i)))(input_shape)
 		cnn_x = BatchNormalization()(cnn_x)
 		cnn_x = Activation('exponential')(cnn_x)
 		cnn_x = MaxPooling1D(pool_size=7, strides=7)(cnn_x)
@@ -248,20 +237,9 @@ def ExplaiNNEncoder(sequence_size, tasks):
 		
 	encoder = kl.concatenate(encoder)
 	
-	# heads per task
-	outputs = []
-	for task in tasks:
-		outputs.append(kl.Dense(1, activation='linear', name=str('Dense_' + task))(encoder))
+	return input_shape, encoder
 
-	model = keras.models.Model([input], outputs)
-	model.compile(keras.optimizers.Adam(learning_rate=params['lr']),
-				  loss=['mse'] * len(tasks),
-				  loss_weights=[1] * len(tasks),
-				  metrics=[Pearson])
-		
-	return model
-
-def MotifDeepSTARREncoder(sequence_size, tasks):
+def MotifDeepSTARREncoder(sequence_size):
 	"""Encoder for a model like DeepSTARR, but with an interpretable motif layer"""
 	
 	# Define parameters for the encoder
@@ -271,17 +249,16 @@ def MotifDeepSTARREncoder(sequence_size, tasks):
 			'conv1_shape': 128,
 			'conv1_pool_size': 10,
 			'dense_shape': 256,
-			'dropout': 0.4,
-			'lr': 0.002
+			'dropout': 0.4
 		}
 	
 	# Input shape 
-	input = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
+	input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
 	
 	# Define encoder to create embedding vector
 	encoder = kl.Conv1D(params['conv1_shape'], kernel_size=params['conv1_kernel_size'],
 				  padding=params['padding'],
-				  name='Conv1D')(input)
+				  name='Conv1D')(input_shape)
 	encoder = BatchNormalization()(encoder)
 	encoder = Activation('relu')(encoder)
 	encoder = MaxPooling1D(params['conv1_pool_size'])(encoder)
@@ -299,12 +276,20 @@ def MotifDeepSTARREncoder(sequence_size, tasks):
 	encoder = Activation('relu')(encoder)
 	encoder = Dropout(params['dropout'])(encoder)
 	
-	# heads per task
+	return input_shape, encoder
+
+def n_regression_head(input_shape, encoder, tasks):
+	"""Regression head that supports an arbitrary number of tasks"""
+	params = {
+			'lr': 0.002
+		}
+	
+	# Create prediction head per task
 	outputs = []
 	for task in tasks:
 		outputs.append(kl.Dense(1, activation='linear', name=str('Dense_' + task))(encoder))
 
-	model = keras.models.Model([input], outputs)
+	model = keras.models.Model([input_shape], outputs)
 	model.compile(keras.optimizers.Adam(learning_rate=params['lr']),
 				  loss=['mse'] * len(tasks),
 				  loss_weights=[1] * len(tasks),
@@ -417,15 +402,18 @@ def train(model, model_type, use_homologs, replicate, file_folder, homolog_folde
 
 
 def train_deepstarr(use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="DeepSTARR"):
-	model = DeepSTARREncoder(sequence_size, tasks)
+	input_shape, encoder = DeepSTARREncoder(sequence_size)
+	model = n_regression_head(input_shape, encoder, tasks)
 	train(model, model_type, use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks)
 
 def train_explainn(use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="ExplaiNN"):
-	model = ExplaiNNEncoder(sequence_size, tasks)
+	input_shape, encoder = ExplaiNNEncoder(sequence_size)
+	model = n_regression_head(input_shape, encoder, tasks)
 	train(model, model_type, use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks)
 	
 def train_motif_deepstarr(use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="MotifDeepSTARR"):
-	model = MotifDeepSTARREncoder(sequence_size, tasks)
+	input_shape, encoder = MotifDeepSTARREncoder(sequence_size)
+	model = n_regression_head(input_shape, encoder, tasks)
 	train(model, model_type, use_homologs, replicate, file_folder, homolog_folder, output_folder, tasks)
 	
 # ====================================================================================================================
