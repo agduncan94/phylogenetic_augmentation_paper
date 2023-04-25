@@ -241,6 +241,7 @@ def DeepSTARREncoder(sequence_size):
         'kernel_size4': 3,
         'num_filters': 256,
         'num_filters2': 60,
+        'num_filters3': 60,
         'num_filters4': 120,
         'n_conv_layer': 4,
         'n_add_layer': 2,
@@ -414,21 +415,21 @@ def basset_head(input_shape, encoder, tasks):
 
 
 def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, batch_size=128):
-    # Parameters
+    # Parameters for model training
     epochs = 100
     early_stop = 10
     fine_tune_epochs = 10
     fold = 4
 
-    # Create a unique identifier
+    # Create a unique identifier for the model
     model_id = model_type + "_rep" + \
         str(replicate) + "_frac" + str(sample_fraction)
 
-    # Create folder for output
+    # Create the output folder
     model_output_folder = output_folder + model_id + "/"
     os.makedirs(model_output_folder, exist_ok=True)
 
-    # Determine the number of sequences in training and validation (For generator)
+    # Determine the number of sequences in the train/val/test sets
     num_samples_train = utils.count_lines_in_file(
         file_folder + "Sequences_activity_Train.txt") - 1
     num_samples_val = utils.count_lines_in_file(
@@ -441,13 +442,13 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     filtered_indices = np.random.choice(
         list(range(num_samples_train)), reduced_num_samples_train, replace=False)
 
-    # Data for train and validation sets
+    # Data generators for train and val sets used during initial training
     datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt",
                              homolog_folder, reduced_num_samples_train, batch_size, tasks, True, use_homologs, fold, False, filtered_indices)
     datagen_val = data_gen(file_folder + "Sequences_Val.fa", file_folder + "Sequences_activity_Val.txt",
                            homolog_folder, num_samples_val, batch_size, tasks, True, False, fold, False, None)
 
-    # Fit model
+    # Fit model using the data generators
     history = model.fit(datagen_train,
                         validation_data=datagen_val,
                         epochs=epochs,
@@ -458,7 +459,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                         callbacks=[EarlyStopping(patience=early_stop, monitor="val_loss", restore_best_weights=True),
                                    History()])
 
-    # Save model without finetuning
+    # Save model (no finetuning)
     if use_homologs:
         augmentation_type = 'homologs'
     else:
@@ -466,6 +467,8 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     save_model(model_id + "_" + augmentation_type,
                model, history, model_output_folder)
+
+    # Plot test performance on a scatterplot (no finetuning)
     test_correlations = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa",
                                                   file_folder + "Sequences_activity_Test.txt",
                                                   model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test",
@@ -475,14 +478,15 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                                                   False,
                                                   batch_size)
 
+    # Write performance metrics to file (no finetuning)
     write_to_file(model_id, augmentation_type, model_type, replicate,
                   sample_fraction, history, tasks, test_correlations, output_folder)
 
-    # Save plots for performance and loss
+    # Save plots for performance and loss (no finetuning)
     plot_scatterplots(history, model_output_folder,
                       model_id, augmentation_type, tasks)
 
-    # Fine tuning on original training
+    # Perform finetuning on the original training only
     model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=1e-4, weight_decay=1e-6),
                   loss=['mse'] * len(tasks),
                   loss_weights=[1] * len(tasks),
@@ -493,6 +497,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
         datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt",
                                  homolog_folder, reduced_num_samples_train, batch_size, tasks, True, False, fold, False, filtered_indices)
 
+    # Fit the model using new generator
     fine_tune_history = model.fit(datagen_train,
                                   validation_data=datagen_val,
                                   steps_per_epoch=math.ceil(
@@ -501,7 +506,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                                       num_samples_val / batch_size),
                                   epochs=fine_tune_epochs)
 
-    # Save model with finetuning
+    # Save model (with finetuning)
     if use_homologs:
         augmentation_ft_type = 'homologs_finetune'
     else:
@@ -509,6 +514,8 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     save_model(model_id + "_" + augmentation_ft_type, model,
                fine_tune_history, model_output_folder)
+
+    # Plot test performance on a scatterplot (with finetuning)
     test_correlations = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa",
                                                   file_folder + "Sequences_activity_Test.txt",
                                                   model_output_folder + 'Model_' + model_id +
@@ -518,20 +525,12 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                                                   tasks,
                                                   False,
                                                   batch_size)
+
+    # Write performance metrics to file (with finetuning)
     write_to_file(model_id, augmentation_ft_type, model_type, replicate,
                   sample_fraction, fine_tune_history, tasks, test_correlations, output_folder)
 
-    # Save the model and history
-    model_json = model.to_json()
-    with open(model_output_folder + 'Model_' + model_id + '.json', "w") as json_file:
-        json_file.write(model_json)
-
-    model.save_weights(model_output_folder + 'Model_' + model_id + '.h5')
-
-    with open(model_output_folder + 'Model_' + model_id + '_history', 'wb') as file_pi:
-        pickle.dump(history.history, file_pi)
-
-    # Save plots for performance and loss
+    # Save plots for performance and loss (with finetuning)
     plot_scatterplots(fine_tune_history, model_output_folder,
                       model_id, augmentation_ft_type, tasks)
 
@@ -558,7 +557,7 @@ def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
 
 
 def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="Basset"):
-    input_shape, encoder = MotifDeepSTARREncoder(sequence_size)
+    input_shape, encoder = BassetEncoder(sequence_size)
     model = basset_head(input_shape, encoder, tasks)
     train(model, model_type, use_homologs, sample_fraction, replicate,
           file_folder, homolog_folder, output_folder, tasks)
@@ -569,6 +568,8 @@ def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_
 
 
 def plot_prediction_vs_actual(model, fasta_file, activity_file, output_file_prefix, num_samples, homolog_folder, tasks, use_homologs=False, batch_size=128):
+    """Plots the predicted vs actual activity for each task on given input set"""
+
     # Load the activity data
     Y = []
     for task in tasks:
@@ -606,10 +607,12 @@ def plot_prediction_vs_actual(model, fasta_file, activity_file, output_file_pref
         plt.clf()
         correlations.append(correlation_y)
 
+    # Return a list of correlations for all tasks
     return correlations
 
 
 def plot_scatterplot(history, a, b, x, y, title, filename):
+    """Plots a scatterplot and saves to file"""
     plt.plot(history.history[a])
     plt.plot(history.history[b])
     plt.title(title)
@@ -621,6 +624,7 @@ def plot_scatterplot(history, a, b, x, y, title, filename):
 
 
 def plot_scatterplots(history, model_output_folder, model_id, name, tasks):
+    """Plots model performance and loss for each task of a given model"""
     for task in tasks:
         plot_scatterplot(history, 'Dense_' + task + '_Pearson', 'val_Dense_' + task + '_Pearson', 'PCC', 'epoch', 'Model performance ' +
                          task + ' (Pearson)', model_output_folder + 'Model_' + model_id + '_' + name + '_' + task + '_pearson.png')
@@ -633,7 +637,11 @@ def plot_scatterplots(history, model_output_folder, model_id, name, tasks):
 
 
 def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fraction, history, tasks, test_correlations, output_folder):
+    """Writes model performance to a file"""
+
     correlation_file_path = output_folder + 'model_correlation.tsv'
+
+    # Generate line to write to file
     line = model_id + "\t" + augmentation_type + "\t" + model_type + \
         "\t" + str(replicate) + "\t" + str(sample_fraction) + "\t"
 
@@ -650,6 +658,7 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fra
         else:
             line += str(test_correlations[i]) + "\t"
 
+    # Write line to file (and also header if necessary)
     if os.path.isfile(correlation_file_path):
         f = open(correlation_file_path, "a")
         f.write(line)
@@ -673,7 +682,7 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fra
 
 
 def save_model(model_name, model, history, model_output_folder):
-    # Save the model and history
+    """Saves a model and its history to a file"""
     model_json = model.to_json()
     with open(model_output_folder + 'Model_' + model_name + '.json', "w") as json_file:
         json_file.write(model_json)
