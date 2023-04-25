@@ -6,7 +6,7 @@
 # Run the DeepSTARR model on sampled training data
 # ####################################################################################################################
 
-num_replicates=2
+num_replicates=3
 declare -a models=('deepstarr')
 declare -a sample_fraction=(0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0)
 
