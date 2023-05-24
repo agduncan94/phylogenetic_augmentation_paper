@@ -162,22 +162,21 @@ def Pearson(y_true, y_pred):
 
 def BassetEncoder(sequence_size):
     """Encoder for Basset from Kelley et al"""
-    params = {'epochs': 100,
-              'early_stop': 10,
-              'kernel_size1': 19,
-              'kernel_size2': 11,
-              'kernel_size3': 7,
-              'num_filters1': 300,
-              'num_filters2': 200,
-              'num_filters3': 200,
-              'max_pool1': 3,
-              'max_pool2': 4,
-              'max_pool3': 4,
-              'n_add_layer': 2,
-              'dropout_prob': 0.3,
-              'dense_neurons1': 1000,
-              'dense_neurons2': 1000,
-              'pad': 'same'}
+    params = {
+        'kernel_size1': 19,
+        'kernel_size2': 11,
+        'kernel_size3': 7,
+        'num_filters1': 300,
+        'num_filters2': 200,
+        'num_filters3': 200,
+        'max_pool1': 3,
+        'max_pool2': 4,
+        'max_pool3': 4,
+        'n_add_layer': 2,
+        'dropout_prob': 0.3,
+        'dense_neurons1': 1000,
+        'dense_neurons2': 1000,
+        'pad': 'same'}
 
     # Input shape
     input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
@@ -233,8 +232,6 @@ def DeepSTARREncoder(sequence_size):
     """Encoder for DeepSTARR from de Almeida et al"""
 
     params = {
-        'epochs': 100,
-        'early_stop': 10,
         'kernel_size1': 7,
         'kernel_size2': 3,
         'kernel_size3': 5,
@@ -290,9 +287,10 @@ def ExplaiNNEncoder(sequence_size):
     params = {
         'padding': 'same',
         'conv1_kernel_size': 19,
-        'conv1_shape': 128,
-        'conv1_pool_size': 10,
-        'num_of_motifs': 100
+        'fc_1_size': 20,
+        'fc_2_size': 1,
+        'num_of_motifs': 100,
+        'dropout': 0.3
     }
 
     # Input shape
@@ -303,7 +301,7 @@ def ExplaiNNEncoder(sequence_size):
 
     for i in range(params['num_of_motifs']):
         # 1st convolutional layer
-        cnn_x = kl.Conv1D(1, kernel_size=params['conv1_shape'], padding='same', name=str(
+        cnn_x = kl.Conv1D(1, kernel_size=params['conv1_kernel_size'], padding='same', name=str(
             'cnn_' + str(i)))(input_shape)
         cnn_x = BatchNormalization()(cnn_x)
         cnn_x = Activation('exponential')(cnn_x)
@@ -311,13 +309,15 @@ def ExplaiNNEncoder(sequence_size):
         cnn_x = Flatten()(cnn_x)
 
         # 1st FC layer
-        cnn_x = kl.Dense(20, name=str('FC_' + str(i) + '_a'))(cnn_x)
+        cnn_x = kl.Dense(params['fc_1_size'], name=str(
+            'FC_' + str(i) + '_a'))(cnn_x)
         cnn_x = BatchNormalization()(cnn_x)
         cnn_x = Activation('relu')(cnn_x)
-        cnn_x = Dropout(0.3)(cnn_x)
+        cnn_x = Dropout(params['dropout'])(cnn_x)
 
         # 2nd FC layer
-        cnn_x = kl.Dense(1, name=str('FC_' + str(i) + '_b'))(cnn_x)
+        cnn_x = kl.Dense(params['fc_2_size'], name=str(
+            'FC_' + str(i) + '_b'))(cnn_x)
         cnn_x = BatchNormalization()(cnn_x)
         cnn_x = Activation('relu')(cnn_x)
         cnn_x = Flatten()(cnn_x)
