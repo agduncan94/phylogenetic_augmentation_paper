@@ -7,16 +7,18 @@
 # ####################################################################################################################
 
 num_replicates=3
+#declare -a models=('deepstarr' 'explainn' 'motif_deepstarr')
 declare -a models=('deepstarr')
+gpu_id=$1
 
 for m in "${models[@]}"
 do
 	for i in $(seq 1 $num_replicates)
 	do
 		echo "Training ${m} model - replicate ${i} - without homologs"
-		python perform_chef_augmentation_analysis.py "${m}" ${i} 0
+		python perform_chef_augmentation_analysis.py "${m}" ${i} 0 ${gpu_id}
 		
 		echo "Training ${m} model - replicate ${i} - with homologs"
-		python perform_chef_augmentation_analysis.py "${m}" ${i} 1
+		python perform_chef_augmentation_analysis.py "${m}" ${i} 1 ${gpu_id}
 	done
 done

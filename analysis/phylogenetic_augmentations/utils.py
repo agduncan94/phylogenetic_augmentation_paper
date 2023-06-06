@@ -61,37 +61,25 @@ class fasta:
                 if 'N' not in seq and split_name in self.fasta_dict:
                     self.fasta_dict[split_name].append(seq)
 
-    def one_hot_encode_batch(self, indices, standardize=None, use_homologs=False, fold=1):
+    def one_hot_encode_batch(self, indices, standardize=None, use_homologs=False):
         """One hot encode a batch of """
         seqs = []
-        seq_multiplier = []  # Keep track of the number of homologs used for each sequence
 
         # Augment sequences with homologs and reverse complement
         for ii in indices:
             name = self.fasta_names[ii]
             homologs = self.fasta_dict[name]
-            num_homologs = len(homologs) - 1
 
             if use_homologs:
-                # Augment by adding up to fold homologs
-                homologs_to_add = min(fold - 1, num_homologs)
-                seq_multiplier.append(homologs_to_add + 1)
-
                 # Sample from homologs
-                seq_ids = np.random.choice(
-                    range(1, len(homologs)), homologs_to_add, replace=False)
-
-                for seq_id in seq_ids:
-                    seq = homologs[seq_id]
-                    seq = self.augment_data(seq)
-                    seqs.append(seq)
+                seq_id = np.random.randint(0, len(homologs))
+                seq = homologs[seq_id]
+                seq = self.rev_comp_augmentation(seq)
+                seqs.append(seq)
             else:
-                seq_multiplier.append(1)
-
-            # Add the real sequence
-            seq = self.fasta_dict[name][0]
-            seq = self.augment_data(seq)
-            seqs.append(seq)
+                seq = homologs[0]
+                seq = self.rev_comp_augmentation(seq)
+                seqs.append(seq)
 
         # One hot encode the sequences in the batch
         one_hot_data = []
@@ -109,9 +97,9 @@ class fasta:
             one_hot_data.append(one_hot_seq)
         one_hot_data = np.array(one_hot_data)
 
-        return one_hot_data, seq_multiplier
+        return one_hot_data
 
-    def augment_data(self, seq):
+    def rev_comp_augmentation(self, seq):
         """Apply reverse complement randomly to input sequence"""
         return seq if random.randint(0, 1) == 0 else reverse_complement(seq)
 

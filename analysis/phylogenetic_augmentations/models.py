@@ -38,15 +38,15 @@ ALPHABET_SIZE = 4
 # ====================================================================================================================
 
 
-def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=False, fold=1):
+def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=False):
     """
     Creates a batch of the input and one-hot encodes the sequences
     """
     sequence_length = len(fasta_obj.fasta_dict[fasta_obj.fasta_names[0]][0])
 
     # One-hot encode a batch of sequences
-    seqs, seq_multiplier = fasta_obj.one_hot_encode_batch(
-        indices, sequence_length, use_homologs, fold)
+    seqs = fasta_obj.one_hot_encode_batch(
+        indices, sequence_length, use_homologs)
     X = np.nan_to_num(seqs)
     X_reshaped = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
 
@@ -55,15 +55,13 @@ def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=
     for i, task in enumerate(tasks):
         Y_batch.append(Measurements[Measurements.columns[i]][indices])
 
-    if use_homologs:
-        Y = [np.repeat(item.to_numpy(), seq_multiplier) for item in Y_batch]
-    else:
-        Y = [item.to_numpy() for item in Y_batch]
+    # Create final output
+    Y = [item.to_numpy() for item in Y_batch]
 
     return X_reshaped, Y
 
 
-def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks, shuffle_epoch_end=True, use_homologs=False, fold=1, order=False, filtered_indices=None):
+def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks, shuffle_epoch_end=True, use_homologs=False, order=False, filtered_indices=None):
     """
     Generator function for loading input data in batches
     """
@@ -80,7 +78,7 @@ def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks,
                     os.path.join(homolog_folder, filename))
 
     # Read measurement file
-    Measurements = pd.read_table(y_file)
+    Measurements = pd.read_table(y_file, header=None)
 
     # Sample the FASTA structure and measurements
     if (filtered_indices is not None):
@@ -98,15 +96,8 @@ def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks,
 
     ii = 0
     while True:
-        # Calculate how large a batch size to make
-        if use_homologs:
-            new_batch_size = calculate_batch_size(
-                fasta_obj, indices, batch_size, ii, fold)
-        else:
-            new_batch_size = batch_size
-
-        yield get_batch(fasta_obj, Measurements, tasks, indices[ii:ii + new_batch_size], new_batch_size, use_homologs, fold)
-        ii += new_batch_size
+        yield get_batch(fasta_obj, Measurements, tasks, indices[ii:ii + batch_size], batch_size, use_homologs)
+        ii += batch_size
         if ii >= num_samples:
             ii = 0
             if shuffle_epoch_end:
@@ -115,28 +106,6 @@ def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks,
                         list(range(num_samples)), num_samples, replace=False)
                 else:
                     indices = list(range(n_data))
-
-
-def calculate_batch_size(fasta_obj, indices, batch_size, ii, fold):
-    """
-    Determines new batch size for getting appropriate number of sequences
-    """
-    goal_sequence_size = batch_size * fold
-    current_sequence_size = 0
-    new_batch_size = 0
-
-    for i in range(ii, len(indices)):
-        name = fasta_obj.fasta_names[i]
-        homologs = fasta_obj.fasta_dict[name]
-        num_homologs = len(homologs) - 1
-
-        current_sequence_size += min(fold, num_homologs)
-        new_batch_size += 1
-
-        if current_sequence_size >= goal_sequence_size:
-            break
-
-    return new_batch_size
 
 
 def Pearson(y_true, y_pred):
@@ -211,14 +180,14 @@ def BassetEncoder(sequence_size):
 
     # First linear layer
     x = kl.Dense(params['dense_neurons1'],
-                 name=str('Dense_'))(x)
+                 name=str('Dense_1'))(x)
     x = BatchNormalization()(x)
     x = Activation('relu')(x)
     x = Dropout(params['dropout_prob'])(x)
 
     # Second linear layer
     x = kl.Dense(params['dense_neurons2'],
-                 name=str('Dense_'))(x)
+                 name=str('Dense_2'))(x)
     x = BatchNormalization()(x)
     x = Activation('relu')(x)
     x = Dropout(params['dropout_prob'])(x)
@@ -350,7 +319,7 @@ def MotifDeepSTARREncoder(sequence_size):
                         padding=params['padding'],
                         name='Conv1D')(input_shape)
     encoder = BatchNormalization()(encoder)
-    encoder = Activation('relu')(encoder)
+    encoder = Activation('exponential')(encoder)
     encoder = MaxPooling1D(params['conv1_pool_size'])(encoder)
     encoder = Flatten()(encoder)
 
@@ -393,19 +362,19 @@ def n_regression_head(input_shape, encoder, tasks):
 def basset_head(input_shape, encoder, tasks):
     """Basset head that supports 164 binary predictions"""
     params = {
-        'lr': 0.002,
-        'num_classes': 164
+        'lr': 0.002
     }
 
     # Create prediction head per task
-    outputs = []
-    outputs.append(kl.Dense(
-        params['num_classes'], activation='sigmoid', name=str('Dense_binary'))(encoder))
+    output = kl.Dense(
+        len(tasks), activation='sigmoid', name=str('Dense_binary'))(encoder)
 
-    model = keras.models.Model([input_shape], outputs)
+    model = keras.models.Model([input_shape], output)
     model.compile(keras.optimizers.Adam(learning_rate=params['lr']),
                   loss=['binary_crossentropy'],
                   metrics=['accuracy'])
+
+    print(model.summary())
 
     return model
 
@@ -419,7 +388,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     epochs = 100
     early_stop = 10
     fine_tune_epochs = 10
-    fold = 4
+    batch_size = 256
 
     # Create a unique identifier for the model
     model_id = model_type + "_rep" + \
@@ -444,9 +413,9 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Data generators for train and val sets used during initial training
     datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt",
-                             homolog_folder, reduced_num_samples_train, batch_size, tasks, True, use_homologs, fold, False, filtered_indices)
+                             homolog_folder, reduced_num_samples_train, batch_size, tasks, True, use_homologs, False, filtered_indices)
     datagen_val = data_gen(file_folder + "Sequences_Val.fa", file_folder + "Sequences_activity_Val.txt",
-                           homolog_folder, num_samples_val, batch_size, tasks, True, False, fold, False, None)
+                           homolog_folder, num_samples_val, batch_size, tasks, True, False, False, None)
 
     # Fit model using the data generators
     history = model.fit(datagen_train,
@@ -495,7 +464,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     # Update data generator to not use homologs (not needed for fine-tuning)
     if use_homologs:
         datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt",
-                                 homolog_folder, reduced_num_samples_train, batch_size, tasks, True, False, fold, False, filtered_indices)
+                                 homolog_folder, reduced_num_samples_train, batch_size, tasks, True, False, False, filtered_indices)
 
     # Fit the model using new generator
     fine_tune_history = model.fit(datagen_train,
@@ -535,28 +504,32 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                       model_id, augmentation_ft_type, tasks)
 
 
-def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="DeepSTARR"):
+def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="DeepSTARR", gpu_id="0"):
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     input_shape, encoder = DeepSTARREncoder(sequence_size)
     model = n_regression_head(input_shape, encoder, tasks)
     train(model, model_type, use_homologs, sample_fraction, replicate,
           file_folder, homolog_folder, output_folder, tasks)
 
 
-def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="ExplaiNN"):
+def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="ExplaiNN", gpu_id="0"):
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     input_shape, encoder = ExplaiNNEncoder(sequence_size)
     model = n_regression_head(input_shape, encoder, tasks)
     train(model, model_type, use_homologs, sample_fraction, replicate,
           file_folder, homolog_folder, output_folder, tasks)
 
 
-def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="MotifDeepSTARR"):
+def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="MotifDeepSTARR", gpu_id="0"):
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     input_shape, encoder = MotifDeepSTARREncoder(sequence_size)
     model = n_regression_head(input_shape, encoder, tasks)
     train(model, model_type, use_homologs, sample_fraction, replicate,
           file_folder, homolog_folder, output_folder, tasks)
 
 
-def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="Basset"):
+def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="Basset", gpu_id="0"):
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     input_shape, encoder = BassetEncoder(sequence_size)
     model = basset_head(input_shape, encoder, tasks)
     train(model, model_type, use_homologs, sample_fraction, replicate,
