@@ -61,7 +61,7 @@ def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=
     return X_reshaped, Y
 
 
-def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks, shuffle_epoch_end=True, use_homologs=False, order=False, filtered_indices=None):
+def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks, shuffle_epoch_end=True, use_homologs=False, species=None, order=False, filtered_indices=None):
     """
     Generator function for loading input data in batches
     """
@@ -73,12 +73,13 @@ def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks,
         directory = os.fsencode(homolog_folder)
         for file in os.listdir(directory):
             filename = os.fsdecode(file)
-            if filename.endswith(".fa"):
+            if filename.endswith(".fa") and (species is None or [ele for ele in species if(ele in filename)]):
+                print(filename)
                 fasta_obj.add_homolog_sequences(
                     os.path.join(homolog_folder, filename))
 
     # Read measurement file
-    Measurements = pd.read_table(y_file, header=None)
+    Measurements = pd.read_table(y_file)
 
     # Sample the FASTA structure and measurements
     if (filtered_indices is not None):
@@ -127,74 +128,6 @@ def Pearson(y_true, y_pred):
 # ====================================================================================================================
 # Models encoders and training tasks
 # ====================================================================================================================
-
-
-def BassetEncoder(sequence_size):
-    """Encoder for Basset from Kelley et al"""
-    params = {
-        'kernel_size1': 19,
-        'kernel_size2': 11,
-        'kernel_size3': 7,
-        'num_filters1': 300,
-        'num_filters2': 200,
-        'num_filters3': 200,
-        'max_pool1': 3,
-        'max_pool2': 4,
-        'max_pool3': 4,
-        'n_add_layer': 2,
-        'dropout_prob': 0.3,
-        'dense_neurons1': 1000,
-        'dense_neurons2': 1000,
-        'pad': 'same'}
-
-    # Input shape
-    input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
-
-    # Define encoder to create embedding vector
-
-    # First conv layer
-    x = kl.Conv1D(params['num_filters1'], kernel_size=params['kernel_size1'],
-                  padding=params['pad'],
-                  name='Conv1D_1')(input_shape)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = MaxPooling1D(params['max_pool1'])(x)
-
-    # Second conv layer
-    x = kl.Conv1D(params['num_filters2'], kernel_size=params['kernel_size2'],
-                  padding=params['pad'],
-                  name='Conv1D_2')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = MaxPooling1D(params['max_pool2'])(x)
-
-    # Third conv layer
-    x = kl.Conv1D(params['num_filters3'], kernel_size=params['kernel_size3'],
-                  padding=params['pad'],
-                  name='Conv1D_3')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = MaxPooling1D(params['max_pool3'])(x)
-
-    x = Flatten()(x)
-
-    # First linear layer
-    x = kl.Dense(params['dense_neurons1'],
-                 name=str('Dense_1'))(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = Dropout(params['dropout_prob'])(x)
-
-    # Second linear layer
-    x = kl.Dense(params['dense_neurons2'],
-                 name=str('Dense_2'))(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = Dropout(params['dropout_prob'])(x)
-
-    encoder = x
-
-    return input_shape, encoder
 
 
 def DeepSTARREncoder(sequence_size):
@@ -359,31 +292,12 @@ def n_regression_head(input_shape, encoder, tasks):
     return model
 
 
-def basset_head(input_shape, encoder, tasks):
-    """Basset head that supports 164 binary predictions"""
-    params = {
-        'lr': 0.002
-    }
-
-    # Create prediction head per task
-    output = kl.Dense(
-        len(tasks), activation='sigmoid', name=str('Dense_binary'))(encoder)
-
-    model = keras.models.Model([input_shape], output)
-    model.compile(keras.optimizers.Adam(learning_rate=params['lr']),
-                  loss=['binary_crossentropy'],
-                  metrics=['accuracy'])
-
-    print(model.summary())
-
-    return model
-
 # ====================================================================================================================
 # Train models
 # ====================================================================================================================
 
 
-def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, batch_size=128):
+def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, species=None, batch_size=128):
     # Parameters for model training
     epochs = 100
     early_stop = 10
@@ -413,9 +327,9 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Data generators for train and val sets used during initial training
     datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt",
-                             homolog_folder, reduced_num_samples_train, batch_size, tasks, True, use_homologs, False, filtered_indices)
+                             homolog_folder, reduced_num_samples_train, batch_size, tasks, True, use_homologs, species, False, filtered_indices)
     datagen_val = data_gen(file_folder + "Sequences_Val.fa", file_folder + "Sequences_activity_Val.txt",
-                           homolog_folder, num_samples_val, batch_size, tasks, True, False, False, None)
+                           homolog_folder, num_samples_val, batch_size, tasks, True, False, None, False, None)
 
     # Fit model using the data generators
     history = model.fit(datagen_train,
@@ -464,7 +378,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     # Update data generator to not use homologs (not needed for fine-tuning)
     if use_homologs:
         datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt",
-                                 homolog_folder, reduced_num_samples_train, batch_size, tasks, True, False, False, filtered_indices)
+                                 homolog_folder, reduced_num_samples_train, batch_size, tasks, True, False, None, False, filtered_indices)
 
     # Fit the model using new generator
     fine_tune_history = model.fit(datagen_train,
@@ -504,36 +418,30 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                       model_id, augmentation_ft_type, tasks)
 
 
-def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="DeepSTARR", gpu_id="0"):
+def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, species, model_type="DeepSTARR", gpu_id="0"):
+    print("gpuid")
+    print(str(gpu_id))
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     input_shape, encoder = DeepSTARREncoder(sequence_size)
     model = n_regression_head(input_shape, encoder, tasks)
     train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, tasks)
+          file_folder, homolog_folder, output_folder, tasks, species)
 
 
-def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="ExplaiNN", gpu_id="0"):
+def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, species, model_type="ExplaiNN", gpu_id="0"):
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     input_shape, encoder = ExplaiNNEncoder(sequence_size)
     model = n_regression_head(input_shape, encoder, tasks)
     train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, tasks)
+          file_folder, homolog_folder, output_folder, tasks, species)
 
 
-def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="MotifDeepSTARR", gpu_id="0"):
+def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, species, model_type="MotifDeepSTARR", gpu_id="0"):
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     input_shape, encoder = MotifDeepSTARREncoder(sequence_size)
     model = n_regression_head(input_shape, encoder, tasks)
     train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, tasks)
-
-
-def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="Basset", gpu_id="0"):
-    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
-    input_shape, encoder = BassetEncoder(sequence_size)
-    model = basset_head(input_shape, encoder, tasks)
-    train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, tasks)
+          file_folder, homolog_folder, output_folder, tasks, species)
 
 # ====================================================================================================================
 # Plot model performance for dual regression
