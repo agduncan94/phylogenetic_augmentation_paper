@@ -21,11 +21,12 @@ from keras import backend as K
 import math
 import pickle
 import os
+import h5py
 from matplotlib import pyplot as plt
 from matplotlib.offsetbox import AnchoredText
 from scipy import stats
 import os.path
-import utils
+import utils_basset as utils
 from sklearn import metrics
 
 # ====================================================================================================================
@@ -58,6 +59,61 @@ def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=
     Y = Y_batch
 
     return X_reshaped, Y
+
+
+def get_batch_hdf5(split_type, hdf5_file, seq_ids, Measurements, batch_size, indices, use_homologs=False):
+    sequence_length = 600
+
+    seqs = utils.one_hot_encode_batch_hdf5(
+        split_type, hdf5_file, seq_ids, sequence_length, use_homologs)
+
+    X = np.nan_to_num(seqs)
+    X_batch = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
+
+    # Retrieve batch of measurements
+    Y_batch = Measurements.iloc[indices]
+
+    return X_batch, Y_batch
+
+
+def data_gen_hdf5(split_type, hdf5_file, y_file, num_samples, batch_size, shuffle_epoch_end=True, use_homologs=False, order=False, filtered_indices=None):
+    # Get keys from HDF5 file
+    seq_ids = []
+    with h5py.File(hdf5_file, "r") as f:
+        for seq_id in f[split_type + '/sequences'].keys():
+            seq_ids.append(seq_id)
+
+    # Read measurement file
+    Measurements = pd.read_table(y_file, header=None)
+
+    # Sample the seq ids and measurements
+    if (filtered_indices is not None):
+        seq_ids_filtered = [seq_ids[i] for i in filtered_indices]
+        Measurements = Measurements.iloc[filtered_indices]
+        Measurements.reset_index(drop=True, inplace=True)
+    else:
+        seq_ids_filtered = seq_ids
+    seq_ids = None
+
+    # Create the batch indices
+    if not order:
+        indices = np.random.choice(
+            list(range(num_samples)), num_samples, replace=False)
+    else:
+        indices = list(range(num_samples))
+
+    ii = 0
+    while True:
+        yield get_batch_hdf5(split_type, hdf5_file, seq_ids_filtered[ii:ii + batch_size], Measurements, batch_size, indices[ii:ii + batch_size], use_homologs)
+        ii += batch_size
+        if ii >= num_samples:
+            ii = 0
+            if shuffle_epoch_end:
+                if not order:
+                    indices = np.random.choice(
+                        list(range(num_samples)), num_samples, replace=False)
+                else:
+                    indices = list(range(num_samples))
 
 
 def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks, shuffle_epoch_end=True, use_homologs=False, order=False, filtered_indices=None):
@@ -208,7 +264,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     # Parameters for model training
     epochs = 8
     early_stop = 10
-    fine_tune_epochs = 2
+    fine_tune_epochs = 4
     batch_size = 512
 
     # Create a unique identifier for the model
@@ -221,11 +277,11 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Determine the number of sequences in the train/val/test sets
     num_samples_train = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Train.txt") - 1
+        file_folder + "Sequences_activity_Train.txt")
     num_samples_val = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Val.txt") - 1
+        file_folder + "Sequences_activity_Val.txt")
     num_samples_test = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Test.txt") - 1
+        file_folder + "Sequences_activity_Test.txt")
 
     # Sample a reduced set of sequences for training
     reduced_num_samples_train = int(num_samples_train * sample_fraction)
@@ -233,19 +289,19 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
         list(range(num_samples_train)), reduced_num_samples_train, replace=False)
 
     # Data generators for train and val sets used during initial training
-    datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt",
-                             homolog_folder, reduced_num_samples_train, batch_size, tasks, True, use_homologs, False, filtered_indices)
+    datagen_train = data_gen_hdf5("training", file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Train.txt",
+                                  reduced_num_samples_train, batch_size, use_homologs=use_homologs, filtered_indices=filtered_indices)
 
-    datagen_val = data_gen(file_folder + "Sequences_Val.fa", file_folder + "Sequences_activity_Val.txt",
-                           homolog_folder, num_samples_val, batch_size, tasks, True, False, False, None)
+    datagen_val = data_gen_hdf5("validation", file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Val.txt",
+                                num_samples_val, batch_size)
 
     # Fit model using the data generators
     history = model.fit(datagen_train,
                         validation_data=datagen_val,
                         epochs=epochs,
-                        steps_per_epoch=math.ceil(
+                        steps_per_epoch=math.floor(
                             reduced_num_samples_train / batch_size),
-                        validation_steps=math.ceil(
+                        validation_steps=math.floor(
                             num_samples_val / batch_size),
                         callbacks=[EarlyStopping(patience=early_stop, monitor="val_loss", restore_best_weights=True),
                                    History()])
@@ -274,7 +330,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                       model_id, augmentation_type)
 
     plot_prediction_vs_actual(
-        model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_homologs_Test", num_samples_test, tasks, homolog_folder, False, batch_size)
+        model, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, tasks, homolog_folder, False, batch_size)
 
     # Perform finetuning on the original training only
     model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=1e-4, weight_decay=1e-6),
@@ -283,15 +339,15 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Update data generator to not use homologs (not needed for fine-tuning)
     if use_homologs:
-        datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt",
-                                 homolog_folder, reduced_num_samples_train, batch_size, tasks, True, False, False, filtered_indices)
+        datagen_train = data_gen_hdf5("training", file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Train.txt",
+                                      reduced_num_samples_train, batch_size, filtered_indices=filtered_indices)
 
     # Fit the model using new generator
     fine_tune_history = model.fit(datagen_train,
                                   validation_data=datagen_val,
-                                  steps_per_epoch=math.ceil(
+                                  steps_per_epoch=math.floor(
                                       reduced_num_samples_train / batch_size),
-                                  validation_steps=math.ceil(
+                                  validation_steps=math.floor(
                                       num_samples_val / batch_size),
                                   epochs=fine_tune_epochs)
 
@@ -318,7 +374,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                       model_id, augmentation_ft_type)
 
     plot_prediction_vs_actual(
-        model, file_folder + "Sequences_Test.fa", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_homologs_finetune_Test", num_samples_test, tasks, homolog_folder, False, batch_size)
+        model, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, tasks, homolog_folder, False, batch_size)
 
 
 def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="Basset", gpu_id="0"):
@@ -333,27 +389,26 @@ def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_
 # ====================================================================================================================
 
 
-def plot_prediction_vs_actual(model, fasta_file, activity_file, output_file_prefix, num_samples, homolog_dir, tasks, use_homologs=False, batch_size=128):
+def plot_prediction_vs_actual(model, aug_file, activity_file, output_file_prefix, num_samples, homolog_dir, tasks, use_homologs=False, batch_size=128):
     # Load the activity data
     Y = pd.DataFrame()
 
     count = 0
-
-    for x, y in data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, tasks, use_homologs=use_homologs, order=True):
+    # for x, y in data_gen(fasta_file, activity_file, homolog_dir, num_samples, batch_size, tasks, use_homologs=use_homologs, order=True):
+    for x, y in data_gen_hdf5("testing", aug_file, activity_file, num_samples, batch_size, use_homologs=use_homologs, order=True):
         Y = pd.concat((Y, y))
         count += 1
-        if count > (num_samples / batch_size):
+        if count > math.floor(num_samples / batch_size):
             break
 
     # Get model predictions
-    data_generator = data_gen(fasta_file, activity_file, homolog_dir,
-                              num_samples, batch_size, tasks, use_homologs=use_homologs, order=True)
+    data_generator = data_gen_hdf5("testing", aug_file, activity_file,
+                                   num_samples, batch_size, use_homologs=use_homologs, order=True)
     Y_pred = model.predict(
         data_generator, steps=math.ceil(num_samples / batch_size))
 
     fig, c_ax = plt.subplots(1, 1, figsize=(12, 8))
-    for i in list(range(164)):
-        # for i in np.random.choice(range(164), 50):
+    for i in range(50):
         fpr, tpr, thresholds = metrics.roc_curve(
             Y.iloc[:, i], Y_pred[:, i])
         c_ax.plot(fpr, tpr, label='%s (AUC:%0.2f)' %
