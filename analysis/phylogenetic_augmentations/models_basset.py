@@ -187,7 +187,7 @@ def basset_head(input_shape, encoder, tasks):
     model = keras.models.Model([input_shape], output)
     model.compile(keras.optimizers.Adam(learning_rate=params['lr']),
                   loss=['binary_crossentropy'],
-                  metrics=['accuracy', tf.keras.metrics.AUC()])
+                  metrics=[tf.keras.metrics.AUC(curve='PR', name="auc_pr"), tf.keras.metrics.AUC(name="auc_roc")])
 
     return model
 
@@ -199,10 +199,10 @@ def basset_head(input_shape, encoder, tasks):
 def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks):
     # Parameters for model training
     params = {
-        'epochs': 5,
+        'epochs': 1,
         'early_stop': 10,
-        'fine_tune_epochs': 2,
-        'batch_size': 256
+        'fine_tune_epochs': 1,
+        'batch_size': 128
     }
 
     # Create a unique identifier for the model
@@ -231,10 +231,10 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
         filtered_indices = None
 
     # Data generators for train and val sets used during initial training
-    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Train.txt",
+    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Train.txt",
                              reduced_num_samples_train, tasks, params['batch_size'], use_homologs=use_homologs, filtered_indices=filtered_indices)
 
-    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Val.txt",
+    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Val.txt",
                            num_samples_val, tasks, params['batch_size'])
 
     # Fit model using the data generators
@@ -248,7 +248,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                         callbacks=[EarlyStopping(patience=params['early_stop'], monitor="val_loss", restore_best_weights=True),
                                    History()])
 
-    print(history.history)
+    # print(history.history)
     # Save model (no finetuning)
     if use_homologs:
         augmentation_type = 'homologs'
@@ -260,29 +260,35 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Write performance metrics to file (no finetuning)
     epochs = len(history.history['loss'])
-    accuracy = history.history['accuracy'][epochs-1]
-    validation_accuracy = history.history['val_accuracy'][epochs-1]
-    auc = history.history['auc'][epochs-1]
-    validation_auc = history.history['val_auc'][epochs-1]
+    auc_pr = history.history['auc_pr'][epochs-1]
+    validation_auc_pr = history.history['val_auc_pr'][epochs-1]
+    auc_roc = history.history['auc_roc'][epochs-1]
+    validation_auc_roc = history.history['val_auc_roc'][epochs-1]
+
+    evaluate_testing_set(
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, homolog_folder, tasks, params['batch_size'])
+
+    avg_auc, aucs, avg_precision, precisions = plot_prediction_vs_actual(
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, homolog_folder, tasks, False, params['batch_size'])
+
     write_to_file(model_id, augmentation_type, model_type, replicate,
-                  sample_fraction, history, tasks, accuracy, validation_accuracy, auc, validation_auc, output_folder)
+                  sample_fraction, history, tasks, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, output_folder)
 
     # Save plots for performance and loss (no finetuning)
     plot_scatterplots(history, model_output_folder,
                       model_id, augmentation_type)
 
-    plot_prediction_vs_actual(
-        model, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, homolog_folder, tasks, False, params['batch_size'])
-
     # Perform finetuning on the original training only
     model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=1e-4, weight_decay=1e-6),
                   loss=['binary_crossentropy'],
-                  metrics=['accuracy', tf.keras.metrics.AUC()])
+                  metrics=[tf.keras.metrics.AUC(curve='PR', name="auc_pr_ft"), tf.keras.metrics.AUC(name="auc_roc_ft")])
 
     # Update data generator to not use homologs (not needed for fine-tuning)
-    if use_homologs:
-        datagen_train = data_gen(TRAINING, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Train.txt",
-                                 reduced_num_samples_train, tasks, params['batch_size'], filtered_indices=filtered_indices)
+    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Train.txt",
+                             reduced_num_samples_train, tasks, params['batch_size'], use_homologs=False, filtered_indices=filtered_indices)
+
+    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Val.txt",
+                           num_samples_val, tasks, params['batch_size'])
 
     # Fit the model using new generator
     fine_tune_history = model.fit(datagen_train,
@@ -304,19 +310,23 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Write performance metrics to file (with finetuning)
     epochs = len(fine_tune_history.history['loss'])
-    accuracy = fine_tune_history.history['accuracy'][epochs-1]
-    validation_accuracy = fine_tune_history.history['val_accuracy'][epochs-1]
-    auc = fine_tune_history.history['auc_1'][epochs-1]
-    validation_auc = fine_tune_history.history['val_auc_1'][epochs-1]
+    auc_pr = fine_tune_history.history['auc_pr_ft'][epochs-1]
+    validation_auc_pr = fine_tune_history.history['val_auc_pr_ft'][epochs-1]
+    auc_roc = fine_tune_history.history['auc_roc_ft'][epochs-1]
+    validation_auc_roc = fine_tune_history.history['val_auc_roc_ft'][epochs-1]
+
+    evaluate_testing_set(
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, homolog_folder, tasks, params['batch_size'])
+
+    avg_auc, aucs, avg_precision, precisions = plot_prediction_vs_actual(
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, homolog_folder, tasks, False, params['batch_size'])
+
     write_to_file(model_id, augmentation_ft_type, model_type, replicate,
-                  sample_fraction, fine_tune_history, tasks, accuracy, validation_accuracy, auc, validation_auc, output_folder)
+                  sample_fraction, fine_tune_history, tasks, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, output_folder)
 
     # Save plots for performance and loss (with finetuning)
     plot_scatterplots(fine_tune_history, model_output_folder,
                       model_id, augmentation_ft_type)
-
-    plot_prediction_vs_actual(
-        model, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, homolog_folder, tasks, False, params['batch_size'])
 
 
 def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, model_type="Basset", gpu_id="0"):
@@ -329,6 +339,23 @@ def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_
 # ====================================================================================================================
 # Plot model performance for basset
 # ====================================================================================================================
+
+
+def evaluate_testing_set(model, aug_file, activity_file, output_file_prefix, num_samples, homolog_dir, tasks, batch_size=128):
+    # m_auc = tf.keras.metrics.AUC()
+    # m_auprc = tf.keras.metrics.AUC(curve="PR")
+
+    # for x, y in data_gen(TESTING, aug_file, activity_file, num_samples, tasks, batch_size):
+    #     y_pred = model.predict(
+    #         x, batch_size=batch_size)
+    #     m_auc.update_state(y, y_pred)
+    #     m_auprc.update_state(y, y_pred)
+
+    # print("AUC ROC: " + str(m_auc.result().numpy()))
+    # print("AUPRC: " + str(m_auprc.result().numpy()))
+    model_metrics = model.evaluate(data_gen(TESTING, aug_file, activity_file,
+                                   num_samples, tasks, batch_size), steps=math.ceil(num_samples / batch_size))
+    print(model_metrics)
 
 
 def plot_prediction_vs_actual(model, aug_file, activity_file, output_file_prefix, num_samples, homolog_dir, tasks, use_homologs=False, batch_size=128):
@@ -348,20 +375,57 @@ def plot_prediction_vs_actual(model, aug_file, activity_file, output_file_prefix
     Y_pred = model.predict(
         data_generator, steps=math.ceil(num_samples / batch_size))
 
+    # AUC ROC curve
     fig, c_ax = plt.subplots(1, 1, figsize=(12, 8))
+    aucs = []
     for i, task in enumerate(tasks):
         fpr, tpr, thresholds = metrics.roc_curve(
             Y.iloc[:, i], Y_pred[:, i])
+        auc = metrics.auc(fpr, tpr)
+        aucs.append(auc)
         c_ax.plot(fpr, tpr, label='%s (AUC:%0.2f)' %
-                  (str(i), metrics.auc(fpr, tpr)))
+                  (task, auc))
     c_ax.plot(fpr, fpr, 'b-', label='Random Guessing')
 
-    print(metrics.roc_auc_score(Y.to_numpy(), Y_pred, average=None))
-    print(metrics.roc_auc_score(Y.to_numpy(), Y_pred))
+    #print(metrics.roc_auc_score(Y.to_numpy(), Y_pred, average=None))
     c_ax.legend()
     c_ax.set_xlabel('False Positive Rate')
     c_ax.set_ylabel('True Positive Rate')
     plt.savefig(output_file_prefix + "_roc.png")
+
+    avg_auc = metrics.roc_auc_score(Y.to_numpy(), Y_pred)
+    print("Average AUC: " + str(avg_auc))
+
+    # Precision recall
+    plt.clf()
+    precision = dict()
+    recall = dict()
+
+    precisions = []
+
+    for i, task in enumerate(tasks):
+        precision[task], recall[task], _ = metrics.precision_recall_curve(Y.to_numpy()[:, i],
+                                                                          Y_pred[:, i])
+
+        avg_precision_task = metrics.average_precision_score(
+            Y.to_numpy()[:, i], Y_pred[:, i])
+        precisions.append(avg_precision_task)
+
+        plt.plot(recall[task], precision[task],
+                 lw=2,
+                 label='%s (PR:%0.2f)' %
+                 (task, avg_precision_task))
+
+    plt.xlabel("recall")
+    plt.ylabel("precision")
+    plt.legend(loc="best")
+    plt.title("precision vs. recall curve")
+    plt.savefig(output_file_prefix + "_pr.png")
+
+    avg_precision = metrics.average_precision_score(Y.to_numpy(), Y_pred)
+    print("Average PR: " + str(avg_precision))
+
+    return avg_auc, aucs, avg_precision, precisions
 
 
 def plot_scatterplot(history, a, b, x, y, title, filename):
@@ -378,8 +442,6 @@ def plot_scatterplot(history, a, b, x, y, title, filename):
 
 def plot_scatterplots(history, model_output_folder, model_id, name):
     """Plots model performance and loss for each task of a given model"""
-    plot_scatterplot(history, 'accuracy', 'val_accuracy', 'epoch', 'accuracy', 'Model performance ' +
-                     ' (accuracy)', model_output_folder + 'Model_' + model_id + '_' + name + '_accuracy.png')
     plot_scatterplot(history, 'loss', 'val_loss', 'epoch', 'loss',
                      'Model loss', model_output_folder + 'Model_' + model_id + '_' + name + '_loss.png')
 
@@ -388,7 +450,7 @@ def plot_scatterplots(history, model_output_folder, model_id, name):
 # ====================================================================================================================
 
 
-def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fraction, history, tasks, accuracy, validation_accuracy, auc, validation_auc, output_folder):
+def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fraction, history, tasks, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, test_auc, mean_test_auc, test_pr, mean_test_pr, output_folder):
     """Writes model performance to a file"""
 
     correlation_file_path = output_folder + 'model_metrics.tsv'
@@ -396,8 +458,18 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fra
     # Generate line to write to file
     line = model_id + "\t" + augmentation_type + "\t" + model_type + \
         "\t" + str(replicate) + "\t" + str(sample_fraction) + \
-        "\t" + str(accuracy) + "\t" + str(validation_accuracy) + \
-        "\t" + str(auc) + "\t" + str(validation_auc) + "\n"
+        "\t" + str(auc_pr) + "\t" + str(validation_auc_pr) + \
+        "\t" + str(auc_roc) + "\t" + str(validation_auc_roc) + \
+        "\t" + str(mean_test_auc) + "\t" + str(mean_test_pr) + "\t"
+
+    for i, task in enumerate(tasks):
+        line += str(test_auc[i]) + "\t"
+
+    for i, task in enumerate(tasks):
+        if i == len(tasks) - 1:
+            line += str(test_pr[i]) + "\n"
+        else:
+            line += str(test_pr[i]) + "\t"
 
     # Write line to file (and also header if necessary)
     if os.path.isfile(correlation_file_path):
@@ -406,7 +478,16 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fra
         f.close()
     else:
         f = open(correlation_file_path, "w")
-        header_line = "name\ttype\tmodel\treplicate\tfraction\taccuracy\tval_accuracy\tauc\tval_auc\n"
+        header_line = "name\ttype\tmodel\treplicate\tfraction\ttrain_auc_pr\tval_auc_pr\ttrain_auc_roc\tval_auc_roc\tmean_test_auc\tmean_test_pr\t"
+
+        for i, task in enumerate(tasks):
+            header_line += "test_auc_" + task + "\t"
+
+        for i, task in enumerate(tasks):
+            if i == len(tasks) - 1:
+                header_line += "test_pr_" + task + "\n"
+            else:
+                header_line += "test_pr_" + task + "\t"
 
         f.write(header_line)
         f.write(line)

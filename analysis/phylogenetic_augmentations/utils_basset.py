@@ -134,7 +134,7 @@ def one_hot_encode_batch_hdf5(split_type, hdf5_file, seq_ids, standardize=None, 
             one_hot_data.append(seq.astype(float))
         one_hot_data = np.array(one_hot_data)
 
-        return one_hot_data
+    return one_hot_data
 
 
 def reverse_complement(dna):

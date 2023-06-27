@@ -30,10 +30,10 @@ sequence_size = 249
 # ====================================================================================================================
 if model_type == "deepstarr":
     models.train_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                           homolog_folder, output_folder, tasks, sequence_size, model_type, gpu_id)
+                           homolog_folder, output_folder, tasks, sequence_size, None, model_type, gpu_id)
 elif model_type == "explainn":
     models.train_explainn(use_homologs, sample_fraction, replicate, file_folder,
-                          homolog_folder, output_folder, tasks, sequence_size, model_type, gpu_id)
+                          homolog_folder, output_folder, tasks, sequence_size, None, model_type, gpu_id)
 elif model_type == "motif_deepstarr":
     models.train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                                 homolog_folder, output_folder, tasks, sequence_size, model_type, gpu_id)
+                                 homolog_folder, output_folder, tasks, sequence_size, None, model_type, gpu_id)
