@@ -38,7 +38,7 @@ ALPHABET_SIZE = 4
 # ====================================================================================================================
 
 
-def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=False):
+def get_batch(fasta_obj, data, tasks, indices, batch_size, use_homologs=False, homolog_rate=1.0):
     """
     Creates a batch of the input and one-hot encodes the sequences
     """
@@ -46,14 +46,14 @@ def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=
 
     # One-hot encode a batch of sequences
     seqs = fasta_obj.one_hot_encode_batch(
-        indices, sequence_length, use_homologs)
+        indices, sequence_length, use_homologs, homolog_rate)
     X = np.nan_to_num(seqs)
     X_reshaped = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
 
     # Retrieve batch of measurements
     Y_batch = []
     for i, task in enumerate(tasks):
-        Y_batch.append(Measurements[Measurements.columns[i]][indices])
+        Y_batch.append(data[data.columns[i]][indices])
 
     # Create final output
     Y = [item.to_numpy() for item in Y_batch]
@@ -61,12 +61,26 @@ def get_batch(fasta_obj, Measurements, tasks, indices, batch_size, use_homologs=
     return X_reshaped, Y
 
 
-def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks, shuffle_epoch_end=True, use_homologs=False, species=None, order=False, filtered_indices=None):
+def data_gen(input_file, homolog_folder, num_samples, batch_size, tasks, shuffle_epoch_end=True, use_homologs=False, species=None, sequence_filter=None, order=False, filtered_indices=None, homolog_rate=1.0):
     """
     Generator function for loading input data in batches
     """
-    # Read FASTA file
-    fasta_obj = utils.fasta(fasta_file)
+
+    # Read input file
+    data = pd.read_table(input_file)
+
+    # Remove sequences not in list
+    if sequence_filter is not None:
+        data = data[data['Name'].str.contains('|'.join(sequence_filter))]
+        data.reset_index(drop=True, inplace=True)
+
+    # Sample the input data
+    if (filtered_indices is not None):
+        data = data.iloc[filtered_indices]
+        data.reset_index(drop=True, inplace=True)
+
+    # Create FASTA object with homologs
+    fasta_obj = utils.fasta(data)
 
     # Add homologs to FASTA data structure
     if use_homologs:
@@ -74,18 +88,9 @@ def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks,
         for file in os.listdir(directory):
             filename = os.fsdecode(file)
             if filename.endswith(".fa") and (species is None or [ele for ele in species if(ele in filename)]):
-                print(filename)
+                # print(filename)
                 fasta_obj.add_homolog_sequences(
                     os.path.join(homolog_folder, filename))
-
-    # Read measurement file
-    Measurements = pd.read_table(y_file)
-
-    # Sample the FASTA structure and measurements
-    if (filtered_indices is not None):
-        fasta_obj.sample_fasta(filtered_indices)
-        Measurements = Measurements.iloc[filtered_indices]
-        Measurements.reset_index(drop=True, inplace=True)
 
     # Create the batch indices
     n_data = len(fasta_obj.fasta_names)
@@ -97,7 +102,7 @@ def data_gen(fasta_file, y_file, homolog_folder, num_samples, batch_size, tasks,
 
     ii = 0
     while True:
-        yield get_batch(fasta_obj, Measurements, tasks, indices[ii:ii + batch_size], batch_size, use_homologs)
+        yield get_batch(fasta_obj, data, tasks, indices[ii:ii + batch_size], batch_size, use_homologs, homolog_rate)
         ii += batch_size
         if ii >= num_samples:
             ii = 0
@@ -191,7 +196,7 @@ def ExplaiNNEncoder(sequence_size):
         'conv1_kernel_size': 19,
         'fc_1_size': 20,
         'fc_2_size': 1,
-        'num_of_motifs': 100,
+        'num_of_motifs': 256,
         'dropout': 0.3
     }
 
@@ -238,7 +243,7 @@ def MotifDeepSTARREncoder(sequence_size):
     params = {
         'padding': 'same',
         'conv1_kernel_size': 19,
-        'conv1_shape': 128,
+        'conv1_shape': 256,
         'conv1_pool_size': 10,
         'dense_shape': 256,
         'dropout': 0.4
@@ -271,6 +276,122 @@ def MotifDeepSTARREncoder(sequence_size):
     return input_shape, encoder
 
 
+def MotifLinearEncoder(sequence_size):
+    """Encoder for a simple motif layer followed by a linear combination"""
+
+    # Define parameters for the encoder
+    params = {
+        'padding': 'same',
+        'conv1_kernel_size': 19,
+        'conv1_shape': 256
+    }
+
+    # Input shape
+    input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
+
+    # Define encoder to create embedding vector
+    encoder = kl.Conv1D(params['conv1_shape'], kernel_size=params['conv1_kernel_size'],
+                        padding=params['padding'],
+                        name='Conv1D')(input_shape)
+    encoder = BatchNormalization()(encoder)
+    encoder = Activation('exponential')(encoder)
+    encoder = kl.GlobalMaxPooling1D()(encoder)
+
+    return input_shape, encoder
+
+
+def MotifLinearReluEncoder(sequence_size):
+    """Encoder for a simple motif layer followed by a linear combination"""
+
+    # Define parameters for the encoder
+    params = {
+        'padding': 'same',
+        'conv1_kernel_size': 19,
+        'conv1_shape': 256
+    }
+
+    # Input shape
+    input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
+
+    # Define encoder to create embedding vector
+    encoder = kl.Conv1D(params['conv1_shape'], kernel_size=params['conv1_kernel_size'],
+                        padding=params['padding'],
+                        name='Conv1D')(input_shape)
+    encoder = BatchNormalization()(encoder)
+    encoder = Activation('relu')(encoder)
+    encoder = kl.GlobalMaxPooling1D()(encoder)
+
+    return input_shape, encoder
+
+
+def BassetEncoder(sequence_size):
+    """Encoder for Basset from Kelley et al"""
+    params = {
+        'kernel_size1': 19,
+        'kernel_size2': 11,
+        'kernel_size3': 7,
+        'num_filters1': 300,
+        'num_filters2': 200,
+        'num_filters3': 200,
+        'max_pool1': 3,
+        'max_pool2': 4,
+        'max_pool3': 4,
+        'n_add_layer': 2,
+        'dropout_prob': 0.3,
+        'dense_neurons1': 1000,
+        'dense_neurons2': 1000,
+        'pad': 'same'}
+
+    # Input shape
+    input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
+
+    # Define encoder to create embedding vector
+
+    # First conv layer
+    x = kl.Conv1D(params['num_filters1'], kernel_size=params['kernel_size1'],
+                  padding=params['pad'],
+                  name='Conv1D_1')(input_shape)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = MaxPooling1D(params['max_pool1'])(x)
+
+    # Second conv layer
+    x = kl.Conv1D(params['num_filters2'], kernel_size=params['kernel_size2'],
+                  padding=params['pad'],
+                  name='Conv1D_2')(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = MaxPooling1D(params['max_pool2'])(x)
+
+    # Third conv layer
+    x = kl.Conv1D(params['num_filters3'], kernel_size=params['kernel_size3'],
+                  padding=params['pad'],
+                  name='Conv1D_3')(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = MaxPooling1D(params['max_pool3'])(x)
+
+    x = Flatten()(x)
+
+    # First linear layer
+    x = kl.Dense(params['dense_neurons1'],
+                 name=str('Dense_1'))(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = Dropout(params['dropout_prob'])(x)
+
+    # Second linear layer
+    x = kl.Dense(params['dense_neurons2'],
+                 name=str('Dense_2'))(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = Dropout(params['dropout_prob'])(x)
+
+    encoder = x
+
+    return input_shape, encoder
+
+
 def n_regression_head(input_shape, encoder, tasks):
     """Regression head that supports an arbitrary number of tasks"""
     params = {
@@ -297,12 +418,14 @@ def n_regression_head(input_shape, encoder, tasks):
 # ====================================================================================================================
 
 
-def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, species=None, batch_size=128):
+def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, homolog_rate=1.0, species=None, sequence_filter=None, batch_size=128):
     # Parameters for model training
     epochs = 100
     early_stop = 10
-    fine_tune_epochs = 10
+    fine_tune_epochs = 5
     batch_size = 256
+    #baseline_filters = ['positive_peaks', 'negative']
+    baseline_filters = None
 
     # Create a unique identifier for the model
     model_id = model_type + "_rep" + \
@@ -312,13 +435,21 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     model_output_folder = output_folder + model_id + "/"
     os.makedirs(model_output_folder, exist_ok=True)
 
-    # Determine the number of sequences in the train/val/test sets
-    num_samples_train = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Train.txt") - 1
-    num_samples_val = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Val.txt") - 1
-    num_samples_test = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Test.txt") - 1
+    # Determine the number of sequences in the train/val/test sets. Optionally filter based on seq name including a filter.
+    train_file = file_folder + "Sequences_Train.txt"
+    val_file = file_folder + "Sequences_Val.txt"
+    test_file = file_folder + "Sequences_Test.txt"
+
+    num_samples_train = utils.count_lines_in_file_with_filter(
+        train_file, sequence_filter) - 1
+    num_samples_val = utils.count_lines_in_file_with_filter(
+        val_file, baseline_filters) - 1
+    num_samples_test = utils.count_lines_in_file_with_filter(
+        test_file, baseline_filters) - 1
+
+    print('filtered training size: ' + str(num_samples_train))
+    print('filtered val size: ' + str(num_samples_val))
+    print('filtered test size: ' + str(num_samples_test))
 
     # Sample a reduced set of sequences for training
     reduced_num_samples_train = int(num_samples_train * sample_fraction)
@@ -326,10 +457,10 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
         list(range(num_samples_train)), reduced_num_samples_train, replace=False)
 
     # Data generators for train and val sets used during initial training
-    datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt",
-                             homolog_folder, reduced_num_samples_train, batch_size, tasks, True, use_homologs, species, False, filtered_indices)
-    datagen_val = data_gen(file_folder + "Sequences_Val.fa", file_folder + "Sequences_activity_Val.txt",
-                           homolog_folder, num_samples_val, batch_size, tasks, True, False, None, False, None)
+    datagen_train = data_gen(train_file,
+                             homolog_folder, reduced_num_samples_train, batch_size, tasks, True, use_homologs, species, sequence_filter, False, filtered_indices, homolog_rate)
+    datagen_val = data_gen(val_file,
+                           homolog_folder, num_samples_val, batch_size, tasks, True, False, None, baseline_filters, False, None, homolog_rate)
 
     # Fit model using the data generators
     history = model.fit(datagen_train,
@@ -341,33 +472,38 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                             num_samples_val / batch_size),
                         callbacks=[EarlyStopping(patience=early_stop, monitor="val_loss", restore_best_weights=True),
                                    History()])
+    # Define augmentation type
+    if use_homologs:
+        homolog_augmentation_type = 'homologs'
+    else:
+        homolog_augmentation_type = 'none'
+
+    augmentation_type = 'none'
+    if sequence_filter is not None:
+        augmentation_type = '-'.join(sequence_filter)
 
     # Save model (no finetuning)
-    if use_homologs:
-        augmentation_type = 'homologs'
-    else:
-        augmentation_type = 'none'
-
-    save_model(model_id + "_" + augmentation_type,
+    save_model(model_id + "_" + homolog_augmentation_type + "_" + augmentation_type,
                model, history, model_output_folder)
 
     # Plot test performance on a scatterplot (no finetuning)
-    test_correlations = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa",
-                                                  file_folder + "Sequences_activity_Test.txt",
-                                                  model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test",
+    test_correlations = plot_prediction_vs_actual(model, test_file,
+                                                  model_output_folder + 'Model_' + model_id + "_" +
+                                                  homolog_augmentation_type + "_" + augmentation_type + "_Test",
                                                   num_samples_test,
                                                   homolog_folder,
                                                   tasks,
                                                   False,
+                                                  baseline_filters,
                                                   batch_size)
 
     # Write performance metrics to file (no finetuning)
-    write_to_file(model_id, augmentation_type, model_type, replicate,
-                  sample_fraction, history, tasks, test_correlations, output_folder)
+    write_to_file(model_id, homolog_augmentation_type, augmentation_type, model_type, replicate,
+                  sample_fraction, history, tasks, test_correlations, homolog_rate, output_folder)
 
     # Save plots for performance and loss (no finetuning)
     plot_scatterplots(history, model_output_folder,
-                      model_id, augmentation_type, tasks)
+                      model_id, homolog_augmentation_type, augmentation_type, tasks)
 
     # Perform finetuning on the original training only
     model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=1e-4, weight_decay=1e-6),
@@ -377,8 +513,8 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Update data generator to not use homologs (not needed for fine-tuning)
     if use_homologs:
-        datagen_train = data_gen(file_folder + "Sequences_Train.fa", file_folder + "Sequences_activity_Train.txt",
-                                 homolog_folder, reduced_num_samples_train, batch_size, tasks, True, False, None, False, filtered_indices)
+        datagen_train = data_gen(train_file,
+                                 homolog_folder, reduced_num_samples_train, batch_size, tasks, True, False, None, sequence_filter, False, filtered_indices, homolog_rate)
 
     # Fit the model using new generator
     fine_tune_history = model.fit(datagen_train,
@@ -391,64 +527,94 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Save model (with finetuning)
     if use_homologs:
-        augmentation_ft_type = 'homologs_finetune'
+        homolog_augmentation_ft_type = 'homologs_finetune'
     else:
-        augmentation_ft_type = 'finetune'
+        homolog_augmentation_ft_type = 'finetune'
 
-    save_model(model_id + "_" + augmentation_ft_type, model,
+    augmentation_ft_type = 'none'
+    if sequence_filter is not None:
+        augmentation_ft_type = '-'.join(sequence_filter)
+
+    save_model(model_id + "_" + homolog_augmentation_ft_type + "_" + augmentation_ft_type, model,
                fine_tune_history, model_output_folder)
 
     # Plot test performance on a scatterplot (with finetuning)
-    test_correlations = plot_prediction_vs_actual(model, file_folder + "Sequences_Test.fa",
-                                                  file_folder + "Sequences_activity_Test.txt",
+    test_correlations = plot_prediction_vs_actual(model, test_file,
                                                   model_output_folder + 'Model_' + model_id +
-                                                  "_" + augmentation_ft_type + "_Test",
+                                                  "_" + homolog_augmentation_ft_type + "_" + augmentation_ft_type + "_Test",
                                                   num_samples_test,
                                                   homolog_folder,
                                                   tasks,
                                                   False,
+                                                  baseline_filters,
                                                   batch_size)
 
     # Write performance metrics to file (with finetuning)
-    write_to_file(model_id, augmentation_ft_type, model_type, replicate,
-                  sample_fraction, fine_tune_history, tasks, test_correlations, output_folder)
+    write_to_file(model_id, homolog_augmentation_ft_type, augmentation_ft_type, model_type, replicate,
+                  sample_fraction, fine_tune_history, tasks, test_correlations, homolog_rate, output_folder)
 
     # Save plots for performance and loss (with finetuning)
     plot_scatterplots(fine_tune_history, model_output_folder,
-                      model_id, augmentation_ft_type, tasks)
+                      model_id, homolog_augmentation_ft_type, augmentation_ft_type, tasks)
+
+    # Clean up
+    del(model)
+    keras.backend.clear_session()
 
 
-def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, species, model_type="DeepSTARR", gpu_id="0"):
-    print("gpuid")
-    print(str(gpu_id))
+def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, homolog_rate=1.0, species=None, sequence_filter=None, model_type="DeepSTARR", gpu_id="0"):
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     input_shape, encoder = DeepSTARREncoder(sequence_size)
     model = n_regression_head(input_shape, encoder, tasks)
     train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, tasks, species)
+          file_folder, homolog_folder, output_folder, tasks, homolog_rate, species, sequence_filter)
 
 
-def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, species, model_type="ExplaiNN", gpu_id="0"):
+def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, homolog_rate=1.0, species=None, sequence_filter=None, model_type="ExplaiNN", gpu_id="0"):
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     input_shape, encoder = ExplaiNNEncoder(sequence_size)
     model = n_regression_head(input_shape, encoder, tasks)
     train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, tasks, species)
+          file_folder, homolog_folder, output_folder, tasks, homolog_rate, species, sequence_filter)
 
 
-def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, species, model_type="MotifDeepSTARR", gpu_id="0"):
+def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, homolog_rate=1.0, species=None, sequence_filter=None, model_type="MotifDeepSTARR", gpu_id="0"):
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     input_shape, encoder = MotifDeepSTARREncoder(sequence_size)
     model = n_regression_head(input_shape, encoder, tasks)
     train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, tasks, species)
+          file_folder, homolog_folder, output_folder, tasks, homolog_rate, species, sequence_filter)
+
+
+def train_motif_linear(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, homolog_rate=1.0, species=None, sequence_filter=None, model_type="MotifLinear", gpu_id="0"):
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
+    input_shape, encoder = MotifLinearEncoder(sequence_size)
+    model = n_regression_head(input_shape, encoder, tasks)
+    train(model, model_type, use_homologs, sample_fraction, replicate,
+          file_folder, homolog_folder, output_folder, tasks, homolog_rate, species, sequence_filter)
+
+
+def train_motif_linear_relu(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, homolog_rate=1.0, species=None, sequence_filter=None, model_type="MotifLinearRelu", gpu_id="0"):
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
+    input_shape, encoder = MotifLinearReluEncoder(sequence_size)
+    model = n_regression_head(input_shape, encoder, tasks)
+    train(model, model_type, use_homologs, sample_fraction, replicate,
+          file_folder, homolog_folder, output_folder, tasks, homolog_rate, species, sequence_filter)
+
+
+def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, homolog_rate=1.0, species=None, sequence_filter=None, model_type="Basset", gpu_id="0"):
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
+    input_shape, encoder = BassetEncoder(sequence_size)
+    model = n_regression_head(input_shape, encoder, tasks)
+    train(model, model_type, use_homologs, sample_fraction, replicate,
+          file_folder, homolog_folder, output_folder, tasks, homolog_rate, species, sequence_filter)
 
 # ====================================================================================================================
 # Plot model performance for dual regression
 # ====================================================================================================================
 
 
-def plot_prediction_vs_actual(model, fasta_file, activity_file, output_file_prefix, num_samples, homolog_folder, tasks, use_homologs=False, batch_size=128):
+def plot_prediction_vs_actual(model, input_file, output_file_prefix, num_samples, homolog_folder, tasks, use_homologs=False, baseline_filters=None, batch_size=128):
     """Plots the predicted vs actual activity for each task on given input set"""
 
     # Load the activity data
@@ -457,7 +623,7 @@ def plot_prediction_vs_actual(model, fasta_file, activity_file, output_file_pref
         Y.append(np.array([]))
 
     count = 0
-    for x, y in data_gen(fasta_file, activity_file, homolog_folder, num_samples, batch_size, tasks, use_homologs=use_homologs, order=True):
+    for x, y in data_gen(input_file, homolog_folder, num_samples, batch_size, tasks, use_homologs=use_homologs, sequence_filter=baseline_filters, order=True):
         for i, task in enumerate(tasks):
             Y[i] = np.concatenate((Y[i], y[i]), axis=0)
         count += 1
@@ -465,8 +631,8 @@ def plot_prediction_vs_actual(model, fasta_file, activity_file, output_file_pref
             break
 
     # Get model predictions
-    data_generator = data_gen(fasta_file, activity_file, homolog_folder,
-                              num_samples, batch_size, tasks, use_homologs=use_homologs, order=True)
+    data_generator = data_gen(input_file, homolog_folder,
+                              num_samples, batch_size, tasks, use_homologs=use_homologs, sequence_filter=baseline_filters, order=True)
     Y_pred = model.predict(
         data_generator, steps=math.ceil(num_samples / batch_size))
 
@@ -504,27 +670,28 @@ def plot_scatterplot(history, a, b, x, y, title, filename):
     plt.clf()
 
 
-def plot_scatterplots(history, model_output_folder, model_id, name, tasks):
+def plot_scatterplots(history, model_output_folder, model_id, name1, name2, tasks):
     """Plots model performance and loss for each task of a given model"""
     for task in tasks:
         plot_scatterplot(history, 'Dense_' + task + '_Pearson', 'val_Dense_' + task + '_Pearson', 'PCC', 'epoch', 'Model performance ' +
-                         task + ' (Pearson)', model_output_folder + 'Model_' + model_id + '_' + name + '_' + task + '_pearson.png')
+                         task + ' (Pearson)', model_output_folder + 'Model_' + model_id + '_' + name1 + '_' + name2 + '_' + task + '_pearson.png')
         plot_scatterplot(history, 'Dense_' + task + '_loss', 'val_Dense_' + task + '_loss', 'loss', 'epoch',
-                         'Model loss ' + task, model_output_folder + 'Model_' + model_id + '_' + name + '_' + task + '_loss.png')
+                         'Model loss ' + task, model_output_folder + 'Model_' + model_id + '_' + name1 + '_' + name2 + '_' + task + '_loss.png')
 
 # ====================================================================================================================
 # Helpers
 # ====================================================================================================================
 
 
-def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fraction, history, tasks, test_correlations, output_folder):
+def write_to_file(model_id, homolog_augmentation_type, augmentation_type, model_type, replicate, sample_fraction, history, tasks, test_correlations, homolog_rate, output_folder):
     """Writes model performance to a file"""
 
     correlation_file_path = output_folder + 'model_correlation.tsv'
 
     # Generate line to write to file
-    line = model_id + "\t" + augmentation_type + "\t" + model_type + \
-        "\t" + str(replicate) + "\t" + str(sample_fraction) + "\t"
+    line = model_id + "\t" + homolog_augmentation_type + "\t" + augmentation_type + "\t" + model_type + \
+        "\t" + str(replicate) + "\t" + str(sample_fraction) + \
+        "\t" + str(homolog_rate) + "\t"
 
     epochs_total = len(history.history['val_Dense_' + tasks[0] + '_Pearson'])
     for i, task in enumerate(tasks):
@@ -546,7 +713,7 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fra
         f.close()
     else:
         f = open(correlation_file_path, "w")
-        header_line = "name\ttype\tmodel\treplicate\tfraction\t"
+        header_line = "name\thomolog_aug_type\taug_type\tmodel\treplicate\tfraction\thomolog_rate\t"
         for i, task in enumerate(tasks):
             header_line += "pcc_train_" + task + "\t"
         for i, task in enumerate(tasks):

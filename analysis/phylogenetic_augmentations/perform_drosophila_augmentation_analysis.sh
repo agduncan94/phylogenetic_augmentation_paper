@@ -7,7 +7,7 @@
 # ####################################################################################################################
 
 num_replicates=3
-declare -a models=('motif_deepstarr' 'deepstarr' 'explainn')
+declare -a models=('deepstarr' 'motif_deepstarr' 'explainn')
 
 gpu_id=$1
 

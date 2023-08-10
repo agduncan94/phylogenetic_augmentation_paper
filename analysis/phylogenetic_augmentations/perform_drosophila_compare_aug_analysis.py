@@ -1,5 +1,5 @@
 # ####################################################################################################################
-# perform_drosophila_num_species_analysis.py
+# perform_drosophila_compare_aug_analysis.py
 #
 # Train model using the STARR-seq data
 # ####################################################################################################################
@@ -9,7 +9,7 @@
 # ====================================================================================================================
 import sys
 import models as models
-import pandas as pd
+from itertools import chain, combinations
 
 # ====================================================================================================================
 # Arguments
@@ -17,36 +17,32 @@ import pandas as pd
 model_type = sys.argv[1]
 replicate = sys.argv[2]
 use_homologs = bool(int(sys.argv[3]))
-num_species = int(sys.argv[4])
-gpu_id = sys.argv[5]
+gpu_id = sys.argv[4]
 
 file_folder = "../process_data/drosophila/output/"
 homolog_folder = "../process_data/drosophila/output/orthologs/"
-output_folder = "./output_drosophila_num_species_rev/"
+output_folder = "./output_drosophila_augs_compare/"
 tasks = ['Dev', 'Hk']
 sequence_size = 249
 sample_fraction = 1.0
-species_file = "../process_data/drosophila/output/ordered_drosophila_species.txt"
+
+sequence_filters = ['peak_849bp_region', 'Other']
+
 
 # ====================================================================================================================
 # Main code
 # ====================================================================================================================
 
-# Read species file
-species_df = pd.read_csv(species_file, sep='\t')
-species_list = species_df['species'].to_list()
 
-species_list.reverse()
-
-species_list = species_list[0:num_species]
+def powerset(iterable):
+    s = list(iterable)
+    return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
 
 
-if model_type == "deepstarr":
+for i, combo in enumerate(powerset(sequence_filters), 1):
+    full_combo = list(combo)
+    full_combo.append('positive_peaks')
+    full_combo.append('negative')
+    print(full_combo)
     models.train_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                           homolog_folder, output_folder, tasks, sequence_size, species_list, None, model_type + '_' + str(num_species), gpu_id)
-elif model_type == "explainn":
-    models.train_explainn(use_homologs, sample_fraction, replicate, file_folder,
-                          homolog_folder, output_folder, tasks, sequence_size, species_list, None, model_type + '_' + str(num_species), gpu_id)
-elif model_type == "motif_deepstarr":
-    models.train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                                 homolog_folder, output_folder, tasks, sequence_size, species_list, None, model_type + '_' + str(num_species), gpu_id)
+                           homolog_folder, output_folder, tasks, sequence_size, None, full_combo, model_type, gpu_id)

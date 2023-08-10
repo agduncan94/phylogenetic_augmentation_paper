@@ -24,16 +24,17 @@ homolog_folder = "../process_data/drosophila/output/orthologs/"
 output_folder = "./output_drosophila_sampling/"
 tasks = ['Dev', 'Hk']
 sequence_size = 249
+homolog_rate = 1.0
 
 # ====================================================================================================================
 # Main code
 # ====================================================================================================================
 if model_type == "deepstarr":
     models.train_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                           homolog_folder, output_folder, tasks, sequence_size, None, model_type, gpu_id)
+                           homolog_folder, output_folder, tasks, sequence_size, homolog_rate, None, None, model_type, gpu_id)
 elif model_type == "explainn":
     models.train_explainn(use_homologs, sample_fraction, replicate, file_folder,
-                          homolog_folder, output_folder, tasks, sequence_size, None, model_type, gpu_id)
+                          homolog_folder, output_folder, tasks, sequence_size, homolog_rate, None, None, model_type, gpu_id)
 elif model_type == "motif_deepstarr":
     models.train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                                 homolog_folder, output_folder, tasks, sequence_size, None, model_type, gpu_id)
+                                 homolog_folder, output_folder, tasks, sequence_size, homolog_rate, None, None, model_type, gpu_id)

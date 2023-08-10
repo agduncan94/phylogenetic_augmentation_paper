@@ -3,15 +3,13 @@ library(tidyverse)
 library(cowplot)
 
 # Read correlation file
-drosophila_corr_df <- read_tsv("./output_drosophila_augs_rerun/model_correlation.tsv")
+drosophila_corr_df <- read_tsv("./output_drosophila_num_species_rev/model_correlation.tsv")
 drosophila_corr_df$homolog_aug_type <- factor(drosophila_corr_df$homolog_aug_type)
 drosophila_corr_df$homolog_aug_type <- fct_relevel(drosophila_corr_df$homolog_aug_type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
 drosophila_corr_df$homolog_aug_type <- fct_recode(drosophila_corr_df$homolog_aug_type, `None` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
 
-
-drosophila_corr_df$model <- factor(drosophila_corr_df$model)
-drosophila_corr_df$model <- fct_relevel(drosophila_corr_df$model, c('deepstarr', 'explainn', 'motif_deepstarr'))
-drosophila_corr_df$model <- fct_recode(drosophila_corr_df$model, `DeepSTARR` = "deepstarr", `ExplaiNN` = "explainn", `Motif DeepSTARR` = "motif_deepstarr")
+drosophila_corr_df <- drosophila_corr_df %>% separate('model', c('model', 'num_species'), sep='_')
+drosophila_corr_df$num_species <- as.integer(drosophila_corr_df$num_species)
 
 # Function to summarize data
 data_summary <- function(data, varname, groupnames){
@@ -26,16 +24,19 @@ data_summary <- function(data, varname, groupnames){
   return(data_sum)
 }
 
-# Create plot for Drosophila Dev performance
+# Summarize the data - TEST
 drosophila_corr_summary_dev_df <- data_summary(drosophila_corr_df, varname="pcc_test_Dev", 
-                                               groupnames=c("model", "homolog_aug_type"))
-plot_a <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_test_Dev, colour=homolog_aug_type, fill=homolog_aug_type)) +
+                                               groupnames=c("num_species", "homolog_aug_type"))
+plot_a <- ggplot(drosophila_corr_summary_dev_df, aes(x=num_species, y=pcc_test_Dev, colour=homolog_aug_type, fill=homolog_aug_type)) +
   geom_point(data=drosophila_corr_df, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = pcc_test_Dev-sd, ymax = pcc_test_Dev+sd), width=.4, position=position_dodge(.9), colour="black") +
+  geom_hline(yintercept=0.6656, linetype="dashed", color = "red") +
   theme_bw() +
-  scale_color_manual(values=c('darkgrey', '#E69F00', '#7fc97f','#7393B3')) +
+  scale_color_manual(values=c('darkgrey', '#7393B3', '#7fc97f','#E69F00')) +
+  scale_x_continuous(breaks=seq(1, 20, by=1)) +
   xlab("") +
   ylab("Test set performance (PCC)") +
+  ylim(0.62, 0.72) +
   ggtitle('Developmental task') +
   theme(legend.position="none",
         plot.title = element_text(hjust = 0.5),
@@ -43,16 +44,18 @@ plot_a <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_test_Dev, co
         legend.text = element_text(size=13), panel.border = element_rect(colour = "black", fill=NA, size=1))
 
 
-# Create plot for Drosophila Hk performance
 drosophila_corr_summary_hk_df <- data_summary(drosophila_corr_df, varname="pcc_test_Hk", 
-                                              groupnames=c("model", "homolog_aug_type"))
-plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_test_Hk, colour=homolog_aug_type, fill=homolog_aug_type)) +
+                                              groupnames=c("num_species", "homolog_aug_type"))
+plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=num_species, y=pcc_test_Hk, colour=homolog_aug_type, fill=homolog_aug_type)) +
   geom_point(data=drosophila_corr_df, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = pcc_test_Hk-sd, ymax = pcc_test_Hk+sd), width=.4, position=position_dodge(.9), colour="black") +
+  geom_hline(yintercept=0.7487, linetype="dashed", color = "red") +
   theme_bw() +
-  scale_color_manual(values=c('darkgrey', '#E69F00', '#7fc97f','#7393B3')) +
+  scale_color_manual(values=c('darkgrey', '#7393B3', '#7fc97f','#E69F00')) +
+  scale_x_continuous(breaks=seq(1, 20, by=1)) +
   xlab("") +
   ylab("Test set performance (PCC)") +
+  ylim(0.73, 0.8) +
   ggtitle('Housekeeping task') +
   theme(legend.position="bottom", plot.title = element_text(hjust = 0.5),
         axis.title=element_text(size=14), axis.text = element_text(size=12), legend.title = element_text(size=12),
@@ -62,13 +65,12 @@ plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_test_Hk, colo
 grobs <- ggplotGrob(plot_b)$grobs
 plot_b <- plot_b + theme(legend.position="none")
 
-# Create horizontal plot
 # Combine plots
-plot <- plot_grid(plot_a, plot_b, labels = "")
-#plot <- plot_grid(plot_a, plot_b, ncol=1)
+#plot <- plot_grid(plot_a, plot_b, labels = "AUTO")
+plot <- plot_grid(plot_a, plot_b, ncol=1)
 
 # Add shared legend
 legend <- grobs[[which(sapply(grobs, function(x) x$name) == "guide-box")]]
 final_plot <- plot_grid(plot, legend, nrow = 2, rel_heights = c(1, .1))
 final_plot
-#ggsave(file="./drosophila/output/model_performance_three_models_horizontal.png", plot=final_plot, width=10, height=5.75, units=c("in"))
+#ggsave(file="./output/model_performance_one_homolog_per.pdf", plot=final_plot, width=6.75, height=9, units=c("in"))

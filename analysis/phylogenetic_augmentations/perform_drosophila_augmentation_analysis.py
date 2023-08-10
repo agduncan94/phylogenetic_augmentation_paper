@@ -8,7 +8,7 @@
 # Imports
 # ====================================================================================================================
 import sys
-import models_fold as models
+import models as models
 
 # ====================================================================================================================
 # Arguments
@@ -20,7 +20,7 @@ gpu_id = sys.argv[4]
 
 file_folder = "../process_data/drosophila/output/"
 homolog_folder = "../process_data/drosophila/output/orthologs/"
-output_folder = "./output_drosophila_augs_new_fold/"
+output_folder = "./output_drosophila_augs_rerun/"
 tasks = ['Dev', 'Hk']
 sequence_size = 249
 sample_fraction = 1.0
@@ -30,10 +30,16 @@ sample_fraction = 1.0
 # ====================================================================================================================
 if model_type == "deepstarr":
     models.train_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                           homolog_folder, output_folder, tasks, sequence_size, model_type, gpu_id)
+                           homolog_folder, output_folder, tasks, sequence_size, None, None, model_type, gpu_id)
 elif model_type == "explainn":
     models.train_explainn(use_homologs, sample_fraction, replicate, file_folder,
-                          homolog_folder, output_folder, tasks, sequence_size, model_type, gpu_id)
+                          homolog_folder, output_folder, tasks, sequence_size, None, None, model_type, gpu_id)
 elif model_type == "motif_deepstarr":
     models.train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                                 homolog_folder, output_folder, tasks, sequence_size, model_type, gpu_id)
+                                 homolog_folder, output_folder, tasks, sequence_size, None, None, model_type, gpu_id)
+elif model_type == "motif_linear":
+    models.train_motif_linear(use_homologs, sample_fraction, replicate, file_folder,
+                              homolog_folder, output_folder, tasks, sequence_size, None, None, model_type, gpu_id)
+elif model_type == "motif_linear_relu":
+    models.train_motif_linear_relu(use_homologs, sample_fraction, replicate, file_folder,
+                                   homolog_folder, output_folder, tasks, sequence_size, None, None, model_type, gpu_id)

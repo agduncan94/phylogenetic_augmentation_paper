@@ -8,6 +8,8 @@
 # Imports
 # ====================================================================================================================
 import sys
+import numpy as np
+import utils
 import models_basset as models
 
 # ====================================================================================================================
@@ -21,7 +23,7 @@ gpu_id = sys.argv[5]
 
 file_folder = "../process_data/basset/output/"
 homolog_folder = "../process_data/basset/output/orthologs/per_species_fa/"
-output_folder = "./output_basset_test_hdf5_no_homologs/"
+output_folder = "./output_basset/"
 sequence_size = 600
 tasks = ["8988T", "AoSMC", "Chorion", "CLL", "Fibrobl", "FibroP", "Gliobla", "GM12891", "GM12892", "GM18507", "GM19238", "GM19239", "GM19240", "H9ES",
          "HeLa-S3_IFNa4h", "Hepatocytes", "HPDE6-E6E7", "HSMM_emb", "HTR8svn", "Huh-7.5", "Huh-7", "iPS", "Ishikawa_Estradiol", "Ishikawa_4OHTAM",
@@ -37,9 +39,21 @@ tasks = ["8988T", "AoSMC", "Chorion", "CLL", "Fibrobl", "FibroP", "Gliobla", "GM
          "SKIN.PEN.FRSK.KER.02", "BRST.HMEC.35", "THYM.FET", "BRN.FET.F", "BRN.FET.M", "MUS.PSOAS", "MUS.TRNK.FET", "MUS.LEG.FET", "HRT.FET", "GI.STMC.FET",
          "GI.S.INT.FET", "GI.L.INT.FET", "GI.S.INT", "GI.STMC.GAST", "KID.FET", "LNG.FET", "OVRY", "ADRL.GLND.FET", "PLCNT.FET", "PANC"]
 
-
 # ====================================================================================================================
 # Main code
 # ====================================================================================================================
+
+num_samples_train = utils.count_lines_in_file(
+    file_folder + "Sequences_activity_Train.txt") - 1
+
+filtered_indices = None
+if int(sample_fraction) < 1:
+    reduced_num_samples_train = int(num_samples_train * sample_fraction)
+    filtered_indices = np.random.choice(
+        list(range(num_samples_train)), reduced_num_samples_train, replace=False)
+
 models.train_basset(use_homologs, sample_fraction, replicate, file_folder,
-                    homolog_folder, output_folder, tasks, sequence_size, model_type, gpu_id)
+                    homolog_folder, output_folder, tasks, sequence_size, filtered_indices, model_type, gpu_id)
+
+models.fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder,
+                        homolog_folder, output_folder, tasks, sequence_size, filtered_indices, model_type, gpu_id)

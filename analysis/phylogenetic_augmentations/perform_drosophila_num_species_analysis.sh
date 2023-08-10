@@ -6,7 +6,7 @@
 # Run each model on the same STARR-seq data. Three replicates per model.
 # ####################################################################################################################
 
-num_replicates=2
+num_replicates=3
 declare -a models=('deepstarr')
 
 gpu_id=$1

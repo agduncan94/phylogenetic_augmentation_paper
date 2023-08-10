@@ -28,17 +28,17 @@ class fasta:
         self.read_fasta_file(self.fasta_file_path)
         self.alphabet = "ACGT"
 
-    def read_fasta_file(self, fasta_file_path):
+    def read_fasta_file(self, input_df):
         """Read a FASTA file and store information into object"""
         self.fasta_dict = OrderedDict()
         self.fasta_names = []
-        with open(fasta_file_path) as handle:
-            for values in SeqIO.FastaIO.SimpleFastaParser(handle):
-                name = values[0]
-                split_name = name.split("::")[0]
-                seq = values[1].upper()
-                self.fasta_dict[split_name] = [seq]
-                self.fasta_names.append(split_name)
+
+        for index, row in input_df.iterrows():
+            name = row['Name']
+            split_name = name.split("::")[0]
+            seq = row['Seq']
+            self.fasta_dict[split_name] = [seq]
+            self.fasta_names.append(split_name)
 
     def sample_fasta(self, indices):
         """Samples a set of indices from the FASTA object"""
@@ -61,7 +61,7 @@ class fasta:
                 if 'N' not in seq and split_name in self.fasta_dict:
                     self.fasta_dict[split_name].append(seq)
 
-    def one_hot_encode_batch(self, indices, standardize=None, use_homologs=False):
+    def one_hot_encode_batch(self, indices, standardize=None, use_homologs=False, homolog_rate=1.0):
         """One hot encode a batch of """
         seqs = []
 
@@ -71,8 +71,11 @@ class fasta:
             homologs = self.fasta_dict[name]
 
             if use_homologs:
-                # Sample from homologs
-                seq_id = np.random.randint(0, len(homologs))
+                # Apply phylo aug at a given rate
+                seq_id = 0
+                if random.choices(population=[0, 1], weights=[1 - homolog_rate, homolog_rate])[0] == 1:
+                    # Sample from homologs
+                    seq_id = np.random.randint(0, len(homologs))
                 seq = homologs[seq_id]
                 seq = self.rev_comp_augmentation(seq)
                 seqs.append(seq)
@@ -117,6 +120,20 @@ def reverse_complement(dna):
 def count_lines_in_file(file_path):
     """Counts the number of lines in a file"""
     return sum(1 for line in open(file_path))
+
+
+def count_lines_in_file_with_filter(file_path, filters):
+    """Counts the number of lines in a file, including only matches to the filter list"""
+
+    if filters is None:
+        return count_lines_in_file(file_path)
+
+    count = 0
+    with open(file_path, 'r') as f:
+        for line in f.readlines():
+            if any(a in line for a in filters):
+                count += 1
+    return count
 
 
 class motif_db:
