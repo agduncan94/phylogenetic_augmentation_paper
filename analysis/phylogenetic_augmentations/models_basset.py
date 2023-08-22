@@ -240,10 +240,10 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
         filtered_indices = None
 
     # Data generators for train and val sets used during initial training
-    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Train.txt",
+    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Train.txt",
                              reduced_num_samples_train, tasks, params['batch_size'], use_homologs=use_homologs, filtered_indices=filtered_indices)
 
-    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Val.txt",
+    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Val.txt",
                            num_samples_val, tasks, params['batch_size'])
 
     # Fit model using the data generators
@@ -275,7 +275,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     validation_auc_roc = history.history['val_auc_roc'][epochs-1]
 
     avg_auc, aucs, avg_precision, precisions, tf_aucroc, tf_auprc = plot_prediction_vs_actual(
-        model, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, homolog_folder, tasks, False, params['batch_size'])
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, homolog_folder, tasks, False, params['batch_size'])
 
     write_to_file(model_id, augmentation_type, model_type, replicate,
                   sample_fraction, history, tasks, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, tf_aucroc, tf_auprc, output_folder)
@@ -346,10 +346,10 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
                   metrics=[tf.keras.metrics.AUC(curve='PR', name="auc_pr_ft"), tf.keras.metrics.AUC(name="auc_roc_ft")])
 
     # Update data generator to not use homologs (not needed for fine-tuning)
-    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Train.txt",
+    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Train.txt",
                              reduced_num_samples_train, tasks, params['batch_size'], use_homologs=False, filtered_indices=filtered_indices)
 
-    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Val.txt",
+    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Val.txt",
                            num_samples_val, tasks, params['batch_size'])
 
     # Fit the model using new generator
@@ -373,7 +373,7 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
     validation_auc_roc = fine_tune_history.history['val_auc_roc_ft'][epochs-1]
 
     avg_auc, aucs, avg_precision, precisions, tf_aucroc, tf_auprc = plot_prediction_vs_actual(
-        model, file_folder + "augmentation_data.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, homolog_folder, tasks, False, params['batch_size'])
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, homolog_folder, tasks, False, params['batch_size'])
 
     write_to_file(model_id, augmentation_ft_type, model_type, replicate,
                   sample_fraction, fine_tune_history, tasks, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, tf_aucroc, tf_auprc, output_folder)

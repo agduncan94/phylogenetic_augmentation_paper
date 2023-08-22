@@ -23,6 +23,7 @@ data_summary <- function(data, varname, groupnames){
 drosophila_corr_df <- read_tsv("./drosophila/output_drosophila_num_species/model_correlation.tsv")
 drosophila_corr_df$type <- factor(drosophila_corr_df$type)
 drosophila_corr_df$type <- fct_relevel(drosophila_corr_df$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
+drosophila_corr_df <- drosophila_corr_df %>% filter(type == 'homologs_finetune')
 drosophila_corr_df$type <- fct_recode(drosophila_corr_df$type, `None` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
 
 drosophila_corr_df <- drosophila_corr_df %>% separate('model', c('model', 'num_species'), sep='_')
@@ -37,10 +38,10 @@ plot_a <- ggplot(drosophila_corr_summary_dev_df, aes(x=num_species, y=pcc_test_D
   geom_errorbar(aes(ymin = pcc_test_Dev-sd, ymax = pcc_test_Dev+sd), width=.4, position=position_dodge(.9), colour="black") +
   geom_hline(yintercept=0.6656, linetype="dashed", color = "red") +
   theme_bw() +
-  scale_color_manual(values=c('darkgrey', '#7393B3')) +
-  scale_x_continuous(breaks=seq(1, 20, by=1)) +
+  scale_color_manual(values=c('#7393B3')) +
+  scale_x_continuous(breaks=seq(0, 20, by=5)) +
   xlab("Number of species") +
-  ylab("Test set performance (PCC)") +
+  ylab("Test set performance \n(PCC)") +
   #ylim(0.62, 0.72) +
   ggtitle('Developmental task') +
   theme(legend.position="none",
@@ -56,10 +57,10 @@ plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=num_species, y=pcc_test_Hk
   geom_errorbar(aes(ymin = pcc_test_Hk-sd, ymax = pcc_test_Hk+sd), width=.4, position=position_dodge(.9), colour="black") +
   geom_hline(yintercept=0.7487, linetype="dashed", color = "red") +
   theme_bw() +
-  scale_color_manual(values=c('darkgrey', '#7393B3')) +
-  scale_x_continuous(breaks=seq(1, 20, by=1)) +
+  scale_color_manual(values=c('#7393B3')) +
+  scale_x_continuous(breaks=seq(0, 20, by=5)) +
   xlab("Number of species") +
-  ylab("Test set performance (PCC)") +
+  ylab("Test set performance \n(PCC)") +
   #ylim(0.73, 0.8) +
   ggtitle('Housekeeping task') +
   theme(legend.position="bottom", plot.title = element_text(hjust = 0.5),
@@ -86,7 +87,7 @@ drosophila_pcc$fraction <- factor(drosophila_pcc$fraction)
 drosophila_pcc$homolog_aug_type <- fct_relevel(drosophila_pcc$homolog_aug_type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
 
 # Filter out homolog_aug_types not needed
-drosophila_pcc <- drosophila_pcc %>% filter(homolog_aug_type %in% c('homologs_finetune', 'homologs'))
+drosophila_pcc <- drosophila_pcc %>% filter(homolog_aug_type %in% c('homologs_finetune'))
 drosophila_pcc$homolog_aug_type <- fct_recode(drosophila_pcc$homolog_aug_type, `None` = "none", `FT` = "finetune", `Phylo Aug` = "homologs", `Phylo Aug + FT` = "homologs_finetune")
 
 
@@ -99,7 +100,7 @@ plot_a <- ggplot(drosophila_corr_summary_dev_df, aes(x=homolog_rate, y=pcc_test_
   geom_errorbar(aes(ymin = pcc_test_Dev-sd, ymax = pcc_test_Dev+sd), width=.4, position=position_dodge(.9), colour="black") +
   geom_hline(yintercept=0.6656, linetype="dashed", color = "red") +
   theme_bw() +
-  scale_color_manual(values=c('darkgrey', '#7393B3')) +
+  scale_color_manual(values=c('#7393B3')) +
   xlab("Phylo aug rate") +
   #xlab("") +
   ylab("Test set performance (PCC)") +
@@ -117,7 +118,7 @@ plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=homolog_rate, y=pcc_test_H
   geom_errorbar(aes(ymin = pcc_test_Hk-sd, ymax = pcc_test_Hk+sd), width=.4, position=position_dodge(.9), colour="black") +
   geom_hline(yintercept=0.7487, linetype="dashed", color = "red") +
   theme_bw() +
-  scale_color_manual(values=c('darkgrey', '#7393B3')) +
+  scale_color_manual(values=c('#7393B3')) +
   xlab("Phylo aug rate") +
   #xlab("") +
   ylab("Test set performance (PCC)") +

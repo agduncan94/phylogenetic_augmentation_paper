@@ -17,6 +17,8 @@ data_summary <- function(data, varname, groupnames){
   return(data_sum)
 }
 
+# '#A9A9A9', '#E69F00', '#7fc97f','#7393B3'
+# '#a6cee3', '#1f78b4', '#b2df8a','#33a02c'
 # Load Drosophila data
 drosophila_corr_df <- read_tsv("./output_drosophila_augs_rerun/model_correlation.tsv")
 
@@ -25,7 +27,7 @@ drosophila_corr_df$homolog_aug_type <- factor(drosophila_corr_df$homolog_aug_typ
 drosophila_corr_df$homolog_aug_type <- fct_relevel(drosophila_corr_df$homolog_aug_type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
 drosophila_corr_df$homolog_aug_type <- fct_recode(drosophila_corr_df$homolog_aug_type, `None` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
 drosophila_corr_df$model <- factor(drosophila_corr_df$model)
-drosophila_corr_df$model <- fct_relevel(drosophila_corr_df$model, c('deepstarr', 'motif_deepstarr', 'explainn'))
+drosophila_corr_df$model <- fct_relevel(drosophila_corr_df$model, c('deepstarr', 'explainn', 'motif_deepstarr'))
 drosophila_corr_df$model <- fct_recode(drosophila_corr_df$model, `DeepSTARR` = "deepstarr", `ExplaiNN` = "explainn", `Motif DeepSTARR` = "motif_deepstarr")
 
 
@@ -36,7 +38,7 @@ plot_a <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_test_Dev, co
   geom_point(data=drosophila_corr_df, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = pcc_test_Dev-sd, ymax = pcc_test_Dev+sd), width=.4, position=position_dodge(.9), colour="black") +
   theme_bw() +
-  scale_color_manual(values=c('darkgrey', '#E69F00', '#7fc97f','#7393B3')) +
+  scale_color_manual(values=c('#A9A9A9', '#E69F00', '#7fc97f','#7393B3')) +
   xlab("") +
   ylab("Test set performance (PCC)") +
   ggtitle('Developmental task') +
@@ -76,7 +78,7 @@ final_plot <- plot_grid(plot, legend, nrow = 2, rel_heights = c(1, .1))
 drosophila_plot <- plot
 
 # Load Basset data
-basset_df <- read_tsv("./basset/output_basset_split_homologs/model_metrics.tsv")
+basset_df <- read_tsv("./output_basset/model_metrics.tsv")
 basset_df$type <- factor(basset_df$type)
 basset_df$fraction <- factor(basset_df$fraction)
 basset_df$type <- fct_relevel(basset_df$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
@@ -89,11 +91,12 @@ basset_summary_df <- data_summary(basset_df, varname="mean_test_pr",
                                   groupnames=c("type", "model"))
 
 plot_c <- ggplot(basset_summary_df, aes(x=model, y=mean_test_pr, colour=type, fill=type)) +
-  geom_point(data=basset_df, size=2, position = position_dodge(width=0.2)) +
+  geom_point(data=basset_df, size=2, position = position_dodge(width=0.9)) +
+  geom_errorbar(aes(ymin = mean_test_pr-sd, ymax = mean_test_pr+sd), width=.2, position=position_dodge(.9), colour="black") +
   theme_bw() +
   scale_color_manual(values=c('darkgrey', '#E69F00', '#7fc97f','#7393B3')) +
   xlab('') +
-  ylab("Test set performance (AUPRC)") +
+  ylab("Test set performance (Avg AUPRC)") +
   ggtitle('Basset') +
   theme(legend.position="none", plot.title = element_text(hjust = 0.5, size=15),
         axis.title=element_text(size=13), axis.text = element_text(size = 13), legend.text = element_text(size=13),

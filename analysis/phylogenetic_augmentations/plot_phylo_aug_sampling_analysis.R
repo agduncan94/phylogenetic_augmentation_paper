@@ -80,8 +80,6 @@ final_plot <- plot_grid(plot, legend, nrow = 2, rel_heights = c(1, .1))
 
 drosophila_plot <- plot
 
-
-
 # Load Basset data
 basset_df <- read_tsv("./output_basset/model_metrics.tsv")
 basset_df$type <- factor(basset_df$type)
@@ -99,7 +97,7 @@ basset_summary_df <- data_summary(basset_df, varname="mean_test_pr",
                                   groupnames=c("type", "fraction"))
 
 plot_c <- ggplot(basset_summary_df, aes(x=fraction, y=mean_test_pr, colour=type, fill=type)) +
-  geom_point(data=basset_df, size=2, position = position_dodge(width=0.2)) +
+  geom_point(data=basset_df, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = mean_test_pr-sd, ymax = mean_test_pr+sd), width=.4, position=position_dodge(.9), colour="black") +
   theme_bw() +
   geom_hline(yintercept=0.5359999, linetype="dashed", color = "red") +

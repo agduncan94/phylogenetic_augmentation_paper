@@ -18,11 +18,11 @@ do
 	do
     	for n in $(seq 1 $num_replicates)
     	do       	
-    		echo "Training ${m} model - replicate ${n} - sample ${i} - without homologs"
-    		python perform_basset_analysis.py "${m}" ${n} 0 ${i} ${gpu_id}
+    		#echo "Training ${m} model - replicate ${n} - sample ${i} - without homologs"
+    		#python perform_basset_analysis.py "${m}" ${n} 0 ${i} ${gpu_id}
     		
-    		#echo "Training ${m} model - replicate ${n} - sample ${i} - with homologs"
-            #python perform_basset_analysis.py "${m}" ${n} 1 ${i} ${gpu_id}
+    		echo "Training ${m} model - replicate ${n} - sample ${i} - with homologs"
+            python perform_basset_analysis.py "${m}" ${n} 1 ${i} ${gpu_id}
 		done
 	done
 done
