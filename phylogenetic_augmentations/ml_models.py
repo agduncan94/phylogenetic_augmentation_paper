@@ -27,6 +27,7 @@ from matplotlib.offsetbox import AnchoredText
 from scipy import stats
 import os.path
 import utils
+from sklearn import metrics
 
 # ====================================================================================================================
 # Global settings and parameters
@@ -54,6 +55,13 @@ def Pearson(y_true, y_pred):
     r_den = K.sqrt(x_square_sum * y_square_sum)
     r = r_num / r_den
     return K.mean(r)
+
+
+def auprc(y_true, y_pred):
+    """
+    Calculate the AUPPRC using SciKit Learn
+    """
+    return metrics.average_precision_score(y_true, y_pred)
 
 # ====================================================================================================================
 # Models encoders
@@ -314,6 +322,7 @@ def basset_head(input_shape, encoder, tasks):
 # ====================================================================================================================
 # Helpers
 # ====================================================================================================================
+
 
 def save_model(model_name, model, history, model_output_folder):
     """Saves a model and its history to a file"""

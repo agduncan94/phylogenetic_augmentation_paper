@@ -18,7 +18,10 @@ Loading from the conda file should create the same environment that was used to 
 
 ```
 # Load the conda environment from file
-conda env 
+conda env create -f environment.yml
+
+# Activate conda environment
+conda activate phylogenetic_augmentations
 ```
 
 
@@ -27,13 +30,13 @@ conda env
 To run the analysis for different models, run the following commands:
 
 ```
-# Train models on Drosophila S2 data
+# Train three different CNN models on Drosophila S2 data
 bash perform_drosophila_augmentation_analysis.sh
 
-# Train models on the Basset data
+# Train the Basset CNN on the Basset data
 bash perform_basset_augmentation_analysis.sh
 
-# Plot results
+# Create final figures
 Rscript --vanilla plot_phylo_aug_model_results.R
 ```
 
@@ -48,7 +51,7 @@ bash perform_drosophila_sampling_analysis.sh
 # Train models on sampled Basset data
 bash perform_basset_sampling_analysis.sh
 
-# Plot data
+# Create final figures
 Rscript --vanilla plot_phylo_aug_sampling_analysis.R
 ```
 
@@ -63,7 +66,7 @@ bash perform_drosophila_homolog_rate_analysis.sh
 # Train models for number of species
 bash perform_drosophila_num_species_analysis.sh
 
-# Plot data
+# Create final figures
 Rscript --vanilla plot_hyperparameter_analysis.R
 ```
 

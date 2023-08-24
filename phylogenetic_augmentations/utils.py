@@ -8,9 +8,10 @@
 # Imports
 # ====================================================================================================================
 from collections import OrderedDict
-from Bio import SeqIO, motifs
+from Bio import SeqIO
 import numpy as np
 import random
+import h5py
 
 # ====================================================================================================================
 # FASTA class
@@ -111,6 +112,34 @@ class fasta:
 # ====================================================================================================================
 
 
+def one_hot_encode_batch_hdf5(split_type, hdf5_file, seq_ids, standardize=None, use_homologs=False):
+    seqs = []
+    alphabet = "ACGT"
+    with h5py.File(hdf5_file, "r") as f:
+        # Augment sequences with homologs and reverse complement
+        for seq_id in seq_ids:
+            if use_homologs:
+                # Sample from homologs
+                homologs = f[split_type + '/sequences/' + seq_id]
+                seq_pos = np.random.randint(0, homologs[:].shape[0])
+                seq = homologs[seq_pos]
+                seqs.append(seq)
+            else:
+                homologs = f[split_type + '/sequences/' + seq_id]
+                seq = homologs[0]
+                seqs.append(seq)
+
+        # print(np.array(seqs).shape)
+
+        # One hot encode the sequences in the batch
+        one_hot_data = []
+        for seq in seqs:
+            one_hot_data.append(seq.astype(float))
+        one_hot_data = np.array(one_hot_data)
+
+    return one_hot_data
+
+
 def reverse_complement(dna):
     """Performs reverse complement on the given DNA sequence"""
     complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
@@ -120,39 +149,3 @@ def reverse_complement(dna):
 def count_lines_in_file(file_path):
     """Counts the number of lines in a file"""
     return sum(1 for line in open(file_path))
-
-
-def count_lines_in_file_with_filter(file_path, filters):
-    """Counts the number of lines in a file, including only matches to the filter list"""
-
-    if filters is None:
-        return count_lines_in_file(file_path)
-
-    count = 0
-    with open(file_path, 'r') as f:
-        for line in f.readlines():
-            if any(a in line for a in filters):
-                count += 1
-    return count
-
-
-class motif_db:
-    """Class for PWM files"""
-
-    def __init__(self, pfm_file_path):
-        self.pfm_file_path = pfm_file_path
-        self.motif_db = {}
-        self.read_pfm_db(self.pfm_file_path)
-
-    def read_pfm_db(self, pfm_file_path):
-        self.motif_db = {}
-        fh = open(pfm_file_path)
-        for m in motifs.parse(fh, "jaspar"):
-            self.motif_db[m.matrix_id] = m
-
-
-def convert_pwms_to_filter(motif):
-    """Convert a PWM to weights for a convolutional filter"""
-    pwm = motif.counts.normalize(1).log_odds()
-    pwm_np = np.array([pwm['A'], pwm['C'], pwm['G'], pwm['T']])
-    return pwm_np.T

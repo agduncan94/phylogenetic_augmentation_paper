@@ -1,15 +1,16 @@
 # ####################################################################################################################
-# perform_drosophila_num_species_analysis.py
+# perform_basset_analysis.py
 #
-# Train model using the STARR-seq data
+# Train model using the Basset data
 # ####################################################################################################################
 
 # ====================================================================================================================
 # Imports
 # ====================================================================================================================
 import sys
-import models_drosophila as models
-import pandas as pd
+import numpy as np
+import utils
+import models_basset as models
 
 # ====================================================================================================================
 # Arguments
@@ -17,27 +18,27 @@ import pandas as pd
 model_type = sys.argv[1]
 replicate = sys.argv[2]
 use_homologs = bool(int(sys.argv[3]))
-num_species = int(sys.argv[4])
+sample_fraction = float(sys.argv[4])
 
-file_folder = "../process_data/drosophila/output/"
-homolog_folder = "../process_data/drosophila/output/orthologs/"
-output_folder = "./output_drosophila_num_species_rev/"
-sample_fraction = 1.0
-species_file = "../process_data/drosophila/output/ordered_drosophila_species.txt"
+file_folder = "../process_data/basset/output/"
+homolog_folder = "../process_data/basset/output/orthologs/per_species_fa/"
+output_folder = "./output_basset_sampling/"
 
 # ====================================================================================================================
 # Main code
 # ====================================================================================================================
 
-# Read species file
-species_df = pd.read_csv(species_file, sep='\t')
-species_list = species_df['species'].to_list()
+num_samples_train = utils.count_lines_in_file(
+    file_folder + "Sequences_activity_Train.txt") - 1
 
-species_list.reverse()
+filtered_indices = None
+if int(sample_fraction) < 1:
+    reduced_num_samples_train = int(num_samples_train * sample_fraction)
+    filtered_indices = np.random.choice(
+        list(range(num_samples_train)), reduced_num_samples_train, replace=False)
 
-species_list = species_list[0:num_species]
+models.train_basset(use_homologs, sample_fraction, replicate, file_folder,
+                    homolog_folder, output_folder, filtered_indices)
 
-
-if model_type == "deepstarr":
-    models.train_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                           homolog_folder, output_folder, species=species_list)
+models.fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder,
+                        homolog_folder, output_folder, filtered_indices)

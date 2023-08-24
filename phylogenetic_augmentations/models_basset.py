@@ -27,36 +27,48 @@ from matplotlib import pyplot as plt
 from matplotlib.offsetbox import AnchoredText
 from scipy import stats
 import os.path
-import utils_basset as utils
+import utils
 from ml_models import *
-from sklearn import metrics
 
 # ====================================================================================================================
 # Global settings and parameters
 # ====================================================================================================================
 tf.debugging.set_log_device_placement(False)
 ALPHABET = "ACGT"
+SEQUENCE_LENGTH = 600
+BATCH_SIZE = 256
+TASKS = ["8988T", "AoSMC", "Chorion", "CLL", "Fibrobl", "FibroP", "Gliobla", "GM12891", "GM12892", "GM18507", "GM19238", "GM19239", "GM19240", "H9ES",
+         "HeLa-S3_IFNa4h", "Hepatocytes", "HPDE6-E6E7", "HSMM_emb", "HTR8svn", "Huh-7.5", "Huh-7", "iPS", "Ishikawa_Estradiol", "Ishikawa_4OHTAM",
+         "LNCaP_androgen", "MCF-7_Hypoxia", "Medullo", "Melano", "Myometr", "Osteobl", "PanIsletD", "PanIslets", "pHTE", "ProgFib", "RWPE1", "Stellate",
+         "T-47D", "CD4_Th0", "Urothelia", "Urothelia_UT189", "AG04449", "AG04450", "AG09309", "AG09319", "AG10803", "AoAF", "BE2_C", "BJ", "Caco-2", "CD20+",
+         "CD34+", "CMK", "GM06990", "GM12864", "GM12865", "H7-hESC", "HAc", "HAEpiC", "HA-h", "HA-sp", "HBMEC", "HCF", "HCFaa", "HCM", "HConF", "HCPEpiC", "HCT-116",
+         "HEEpiC", "HFF", "HFF-Myc", "HGF", "HIPEpiC", "HL-60", "HMF", "HMVEC-dAd", "HMVEC-dBl-Ad", "HMVEC-dBl-Neo", "HMVEC-dLy-Ad", "HMVEC-dLy-Neo", "HMVEC-dNeo",
+         "HMVEC-LBl", "HMVEC-LLy", "HNPCEpiC", "HPAEC", "HPAF", "HPdLF", "HPF", "HRCEpiC", "HRE", "HRGEC", "HRPEpiC", "HVMF", "Jurkat", "Monocytes-CD14+", "NB4", "NH-A",
+         "NHDF-Ad", "NHDF-neo", "NHLF", "NT2-D1", "PANC-1", "PrEC", "RPTEC", "SAEC", "SKMC", "SK-N-MC", "SK-N-SH_RA", "Th2", "WERI-Rb-1", "WI-38", "WI-38_4OHTAM", "A549",
+         "GM12878", "H1-hESC", "HeLa-S3", "HepG2", "HMEC", "HSMM", "HSMMtube", "HUVEC", "K562", "LNCaP", "MCF-7", "NHEK", "Th1", "LNG.IMR90", "ESC.H9", "ESC.H1",
+         "IPSC.DF.6.9", "IPSC.DF.19.11", "ESDR.H1.NEUR.PROG", "ESDR.H1.BMP4.MESO", "ESDR.H1.BMP4.TROP", "ESDR.H1.MSC", "BLD.CD3.PPC", "BLD.CD3.CPC", "BLD.CD14.PC",
+         "BLD.MOB.CD34.PC.M", "BLD.MOB.CD34.PC.F", "BLD.CD19.PPC", "BLD.CD56.PC", "SKIN.PEN.FRSK.FIB.01", "SKIN.PEN.FRSK.FIB.02", "SKIN.PEN.FRSK.MEL.01",
+         "SKIN.PEN.FRSK.KER.02", "BRST.HMEC.35", "THYM.FET", "BRN.FET.F", "BRN.FET.M", "MUS.PSOAS", "MUS.TRNK.FET", "MUS.LEG.FET", "HRT.FET", "GI.STMC.FET",
+         "GI.S.INT.FET", "GI.L.INT.FET", "GI.S.INT", "GI.STMC.GAST", "KID.FET", "LNG.FET", "OVRY", "ADRL.GLND.FET", "PLCNT.FET", "PANC"]
+
 TRAINING = "training"
 TESTING = "testing"
 VALIDATION = "validation"
+
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 # ====================================================================================================================
 # Generator code for loading data from hdf5 file
 # ====================================================================================================================
 
 
-def auprc(y_true, y_pred):
-    return metrics.average_precision_score(y_true, y_pred)
-
-
-def get_batch(split_type, hdf5_file, seq_ids, measurements, tasks, batch_size, indices, use_homologs):
-    sequence_length = 600
+def get_batch(split_type, hdf5_file, seq_ids, measurements, indices, use_homologs):
 
     X_batch_seqs = [seq_ids[i] for i in indices]
 
     # rint(indices)
     seqs = utils.one_hot_encode_batch_hdf5(
-        split_type, hdf5_file, X_batch_seqs, sequence_length, use_homologs)
+        split_type, hdf5_file, X_batch_seqs, SEQUENCE_LENGTH, use_homologs)
 
     X = np.nan_to_num(seqs)
     X_batch = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
@@ -67,7 +79,7 @@ def get_batch(split_type, hdf5_file, seq_ids, measurements, tasks, batch_size, i
     return X_batch, Y_batch
 
 
-def data_gen(split_type, hdf5_file, y_file, num_samples, tasks, batch_size, shuffle_epoch_end=True, use_homologs=False, order=False, filtered_indices=None):
+def data_gen(split_type, hdf5_file, y_file, num_samples, shuffle_epoch_end=True, use_homologs=False, order=False, filtered_indices=None):
     # Get keys from HDF5 file
     seq_ids = []
     with h5py.File(hdf5_file, "r") as f:
@@ -95,8 +107,8 @@ def data_gen(split_type, hdf5_file, y_file, num_samples, tasks, batch_size, shuf
 
     ii = 0
     while True:
-        yield get_batch(split_type, hdf5_file, seq_ids_filtered, measurements, tasks, batch_size, indices[ii:ii + batch_size], use_homologs)
-        ii += batch_size
+        yield get_batch(split_type, hdf5_file, seq_ids_filtered, measurements, indices[ii:ii + BATCH_SIZE], use_homologs)
+        ii += BATCH_SIZE
         if ii >= num_samples:
             ii = 0
             if shuffle_epoch_end:
@@ -117,12 +129,11 @@ def clear_keras(model):
     keras.backend.clear_session()
 
 
-def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, filtered_indices):
+def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices):
     # Parameters for model training
     params = {
         'epochs': 20,
-        'early_stop': 10,
-        'batch_size': 256
+        'early_stop': 10
     }
 
     # Create a unique identifier for the model
@@ -141,7 +152,20 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     num_samples_test = utils.count_lines_in_file(
         file_folder + "Sequences_activity_Test.txt") - 1
 
-    # Sample a reduced set of sequences for training
+    # Print summary information about the model
+    print('\n')
+    print('Training model ' + model_type)
+    print('Model ID: ' + model_id)
+    print('Replicate: ' + str(replicate))
+    print('Fraction of training data: ' + str(sample_fraction) +
+          " (" + str(num_samples_train) + ")")
+    if use_homologs:
+        print('Use phylogenetic augmentations: True')
+    else:
+        print('Use phylogenetic augmentations: False')
+    print('\n')
+
+    # Sample a fraction of the original training data
     if int(sample_fraction) < 1:
         reduced_num_samples_train = int(num_samples_train * sample_fraction)
         filtered_indices = np.random.choice(
@@ -152,23 +176,22 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Data generators for train and val sets used during initial training
     datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Train.txt",
-                             reduced_num_samples_train, tasks, params['batch_size'], use_homologs=use_homologs, filtered_indices=filtered_indices)
+                             reduced_num_samples_train, use_homologs=use_homologs, filtered_indices=filtered_indices)
 
     datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Val.txt",
-                           num_samples_val, tasks, params['batch_size'])
+                           num_samples_val)
 
     # Fit model using the data generators
     history = model.fit(datagen_train,
                         validation_data=datagen_val,
                         epochs=params['epochs'],
                         steps_per_epoch=math.ceil(
-                            reduced_num_samples_train / params['batch_size']),
+                            reduced_num_samples_train / BATCH_SIZE),
                         validation_steps=math.ceil(
-                            num_samples_val / params['batch_size']),
+                            num_samples_val / BATCH_SIZE),
                         callbacks=[EarlyStopping(patience=params['early_stop'], monitor="val_loss", restore_best_weights=True),
                                    History()])
 
-    # print(history.history)
     # Save model (no finetuning)
     if use_homologs:
         augmentation_type = 'homologs'
@@ -186,10 +209,10 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     validation_auc_roc = history.history['val_auc_roc'][epochs-1]
 
     avg_auc, aucs, avg_precision, precisions, tf_aucroc, tf_auprc = plot_prediction_vs_actual(
-        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, homolog_folder, tasks, False, params['batch_size'])
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, homolog_folder, False)
 
     write_to_file(model_id, augmentation_type, model_type, replicate,
-                  sample_fraction, history, tasks, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, tf_aucroc, tf_auprc, output_folder)
+                  sample_fraction, history, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, tf_aucroc, tf_auprc, output_folder)
 
     # Save plots for performance and loss (no finetuning)
     plot_scatterplots(history, model_output_folder,
@@ -199,22 +222,20 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     clear_keras(model)
 
 
-def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, filtered_indices=None, model_type="Basset", gpu_id="0"):
-    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
-    input_shape, encoder = BassetEncoder(sequence_size)
-    model = basset_head(input_shape, encoder, tasks)
+def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices=None):
+    model_type = "Basset"
+    input_shape, encoder = BassetEncoder(SEQUENCE_LENGTH)
+    model = basset_head(input_shape, encoder, TASKS)
     train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, tasks, filtered_indices)
+          file_folder, homolog_folder, output_folder, filtered_indices)
 
 
-def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, tasks, sequence_size, filtered_indices=None, model_type="Basset", gpu_id="0"):
+def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices=None):
+    model_type = "Basset"
     # Parameters for model fine tuning
     params = {
-        'fine_tune_epochs': 5,
-        'batch_size': 256
+        'fine_tune_epochs': 5
     }
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
 
     # Create a unique identifier for the model
     model_id = model_type + "_rep" + \
@@ -258,18 +279,18 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
 
     # Update data generator to not use homologs (not needed for fine-tuning)
     datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Train.txt",
-                             reduced_num_samples_train, tasks, params['batch_size'], use_homologs=False, filtered_indices=filtered_indices)
+                             reduced_num_samples_train, use_homologs=False, filtered_indices=filtered_indices)
 
     datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Val.txt",
-                           num_samples_val, tasks, params['batch_size'])
+                           num_samples_val)
 
     # Fit the model using new generator
     fine_tune_history = model.fit(datagen_train,
                                   validation_data=datagen_val,
                                   steps_per_epoch=math.ceil(
-                                      reduced_num_samples_train / params['batch_size']),
+                                      reduced_num_samples_train / BATCH_SIZE),
                                   validation_steps=math.ceil(
-                                      num_samples_val / params['batch_size']),
+                                      num_samples_val / BATCH_SIZE),
                                   epochs=params['fine_tune_epochs'])
 
     # Save model (with finetuning)
@@ -284,10 +305,10 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
     validation_auc_roc = fine_tune_history.history['val_auc_roc_ft'][epochs-1]
 
     avg_auc, aucs, avg_precision, precisions, tf_aucroc, tf_auprc = plot_prediction_vs_actual(
-        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, homolog_folder, tasks, False, params['batch_size'])
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, homolog_folder, False)
 
     write_to_file(model_id, augmentation_ft_type, model_type, replicate,
-                  sample_fraction, fine_tune_history, tasks, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, tf_aucroc, tf_auprc, output_folder)
+                  sample_fraction, fine_tune_history, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, tf_aucroc, tf_auprc, output_folder)
 
     # Save plots for performance and loss (with finetuning)
     plot_scatterplots(fine_tune_history, model_output_folder,
@@ -298,27 +319,27 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
 # ====================================================================================================================
 
 
-def plot_prediction_vs_actual(model, aug_file, activity_file, output_file_prefix, num_samples, homolog_dir, tasks, use_homologs=False, batch_size=128):
+def plot_prediction_vs_actual(model, aug_file, activity_file, output_file_prefix, num_samples, homolog_dir, use_homologs=False):
     # Load the activity data
     Y = pd.DataFrame()
 
     count = 0
-    for x, y in data_gen(TESTING, aug_file, activity_file, num_samples, tasks, batch_size, use_homologs=use_homologs, order=True):
+    for x, y in data_gen(TESTING, aug_file, activity_file, num_samples, use_homologs=use_homologs, order=True):
         Y = pd.concat((Y, y))
         count += 1
-        if count >= math.ceil(num_samples / batch_size):
+        if count >= math.ceil(num_samples / BATCH_SIZE):
             break
 
     # Get model predictions
     data_generator = data_gen(TESTING, aug_file, activity_file,
-                              num_samples, tasks, batch_size, use_homologs=use_homologs, order=True)
+                              num_samples, use_homologs=use_homologs, order=True)
     Y_pred = model.predict(
-        data_generator, steps=math.ceil(num_samples / batch_size))
+        data_generator, steps=math.ceil(num_samples / BATCH_SIZE))
 
     # AUC ROC curve using SciKit Learn
     fig, c_ax = plt.subplots(1, 1, figsize=(12, 8))
     aucs = []
-    for i, task in enumerate(tasks):
+    for i, task in enumerate(TASKS):
         fpr, tpr, thresholds = metrics.roc_curve(
             Y.iloc[:, i], Y_pred[:, i])
         auc = metrics.auc(fpr, tpr)
@@ -343,7 +364,7 @@ def plot_prediction_vs_actual(model, aug_file, activity_file, output_file_prefix
 
     precisions = []
 
-    for i, task in enumerate(tasks):
+    for i, task in enumerate(TASKS):
         precision[task], recall[task], _ = metrics.precision_recall_curve(Y.to_numpy()[:, i],
                                                                           Y_pred[:, i])
 
@@ -367,7 +388,7 @@ def plot_prediction_vs_actual(model, aug_file, activity_file, output_file_prefix
 
     # Metrics using Tensorflow
     model_metrics = model.evaluate(data_gen(TESTING, aug_file, activity_file,
-                                   num_samples, tasks, batch_size), steps=math.ceil(num_samples / batch_size))
+                                   num_samples), steps=math.ceil(num_samples / BATCH_SIZE))
     tf_auprc = model_metrics[1]
     tf_aucroc = model_metrics[2]
 
@@ -399,7 +420,7 @@ def plot_scatterplots(history, model_output_folder, model_id, name):
 # ====================================================================================================================
 
 
-def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fraction, history, tasks, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, test_auc, mean_test_auc, test_pr, mean_test_pr, tf_aucroc, tf_auprc, output_folder):
+def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fraction, history, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, test_auc, mean_test_auc, test_pr, mean_test_pr, tf_aucroc, tf_auprc, output_folder):
     """Writes model performance to a file"""
 
     correlation_file_path = output_folder + 'model_metrics.tsv'
@@ -412,11 +433,11 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fra
         "\t" + str(mean_test_auc) + "\t" + str(mean_test_pr) + \
         "\t" + str(tf_aucroc) + "\t" + str(tf_auprc) + "\t"
 
-    for i, task in enumerate(tasks):
+    for i, task in enumerate(TASKS):
         line += str(test_auc[i]) + "\t"
 
-    for i, task in enumerate(tasks):
-        if i == len(tasks) - 1:
+    for i, task in enumerate(TASKS):
+        if i == len(TASKS) - 1:
             line += str(test_pr[i]) + "\n"
         else:
             line += str(test_pr[i]) + "\t"
@@ -430,11 +451,11 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fra
         f = open(correlation_file_path, "w")
         header_line = "name\ttype\tmodel\treplicate\tfraction\ttrain_auc_pr\tval_auc_pr\ttrain_auc_roc\tval_auc_roc\tmean_test_auc\tmean_test_pr\ttf_aucroc\ttf_auprc\t"
 
-        for i, task in enumerate(tasks):
+        for i, task in enumerate(TASKS):
             header_line += "test_auc_" + task + "\t"
 
-        for i, task in enumerate(tasks):
-            if i == len(tasks) - 1:
+        for i, task in enumerate(TASKS):
+            if i == len(TASKS) - 1:
                 header_line += "test_pr_" + task + "\n"
             else:
                 header_line += "test_pr_" + task + "\t"
@@ -442,15 +463,3 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fra
         f.write(header_line)
         f.write(line)
         f.close()
-
-
-def save_model(model_name, model, history, model_output_folder):
-    """Saves a model and its history to a file"""
-    model_json = model.to_json()
-    with open(model_output_folder + 'Model_' + model_name + '.json', "w") as json_file:
-        json_file.write(model_json)
-
-    model.save_weights(model_output_folder + 'Model_' + model_name + '.h5')
-
-    with open(model_output_folder + 'Model_' + model_name + '_history', 'wb') as file_pi:
-        pickle.dump(history.history, file_pi)
