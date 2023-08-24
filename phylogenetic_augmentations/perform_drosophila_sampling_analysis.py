@@ -1,7 +1,7 @@
 # ####################################################################################################################
 # perform_drosophila_sampling_analysis.py
 #
-# Train model using the STARR-seq data
+# Train model on the Drosophila S2 STARR-seq data with varying fractions
 # ####################################################################################################################
 
 # ====================================================================================================================
@@ -11,26 +11,35 @@ import sys
 import models_drosophila as models
 
 # ====================================================================================================================
-# Arguments
+# Variables
 # ====================================================================================================================
-model_type = sys.argv[1]
-replicate = sys.argv[2]
-use_homologs = bool(int(sys.argv[3]))
-sample_fraction = float(sys.argv[4])
+model_types = ['deepstarr']
+num_replicates = 3
+fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
-file_folder = "../process_data/drosophila/output/"
-homolog_folder = "../process_data/drosophila/output/orthologs/"
+file_folder = "../analysis/process_data/drosophila/output/"
+homolog_folder = "../analysis/process_data/drosophila/output/orthologs/"
 output_folder = "./output_drosophila_sampling/"
 
 # ====================================================================================================================
 # Main code
 # ====================================================================================================================
-if model_type == "deepstarr":
-    models.train_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                           homolog_folder, output_folder)
-elif model_type == "explainn":
-    models.train_explainn(use_homologs, sample_fraction, replicate, file_folder,
-                          homolog_folder, output_folder)
-elif model_type == "motif_deepstarr":
-    models.train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                                 homolog_folder, output_folder)
+
+
+def train_model(use_homologs, model_type, replicate, fraction):
+    if model_type == "deepstarr":
+        models.train_deepstarr(use_homologs, fraction, replicate, file_folder,
+                               homolog_folder, output_folder)
+    elif model_type == "explainn":
+        models.train_explainn(use_homologs, fraction, replicate, file_folder,
+                              homolog_folder, output_folder)
+    elif model_type == "motif_deepstarr":
+        models.train_motif_deepstarr(use_homologs, fraction, replicate, file_folder,
+                                     homolog_folder, output_folder)
+
+
+for model_type in model_types:
+    for fraction in fractions:
+        for replicate in range(1, num_replicates + 1):
+            train_model(True, model_type, replicate, fraction)
+            train_model(False, model_type, replicate, fraction)
