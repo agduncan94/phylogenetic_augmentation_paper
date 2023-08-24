@@ -22,6 +22,9 @@ conda env create -f environment.yml
 
 # Activate conda environment
 conda activate phylogenetic_augmentations
+
+# Install R packages
+
 ```
 
 
@@ -31,10 +34,10 @@ To run the analysis for different models, run the following commands:
 
 ```
 # Train three different CNN models on Drosophila S2 data
-bash perform_drosophila_augmentation_analysis.sh
+python perform_drosophila_augmentation_analysis.py
 
 # Train the Basset CNN on the Basset data
-bash perform_basset_augmentation_analysis.sh
+python perform_basset_augmentation_analysis.py
 
 # Create final figures
 Rscript --vanilla plot_phylo_aug_model_results.R
@@ -46,10 +49,10 @@ To run the sampling analysis, run the following commands:
 
 ```
 # Train models on Drosophila S2 data
-bash perform_drosophila_sampling_analysis.sh
+python perform_drosophila_sampling_analysis.py
 
 # Train models on sampled Basset data
-bash perform_basset_sampling_analysis.sh
+python perform_basset_sampling_analysis.py
 
 # Create final figures
 Rscript --vanilla plot_phylo_aug_sampling_analysis.R
@@ -61,16 +64,21 @@ To run the hyperparameter analysis, run the following commands:
 
 ```
 # Train models for homolog rate
-bash perform_drosophila_homolog_rate_analysis.sh
+python perform_drosophila_homolog_rate_analysis.py
 
 # Train models for number of species
-bash perform_drosophila_num_species_analysis.sh
+python perform_drosophila_num_species_analysis.py
 
 # Create final figures
 Rscript --vanilla plot_hyperparameter_analysis.R
 ```
 
 # Recreating some of the datasets
+
+## Extracting homologs from hal alignments
+```
+# Foo
+```
 
 ## Getting a sorted list of species from an alignment
 ```
