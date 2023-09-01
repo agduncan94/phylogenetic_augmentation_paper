@@ -1,7 +1,7 @@
 # ####################################################################################################################
-# models.py
+# models_drosophila.py
 #
-# Class to train Keras models on Drosophila S2 data
+# Class to train Keras models on Drosophila S2 dataset
 # ####################################################################################################################
 
 # ====================================================================================================================
@@ -116,12 +116,11 @@ def data_gen(input_file, homolog_folder, num_samples, shuffle_epoch_end=True, us
 # Train models
 # ====================================================================================================================
 
-def clear_keras(model):
-    del(model)
-    keras.backend.clear_session()
-
 
 def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, homolog_rate=1.0, species=None):
+    """
+    Train a model
+    """
 
     # Parameters for model training
     epochs = 100
@@ -209,7 +208,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Write performance metrics to file (no finetuning)
     write_to_file(model_id, homolog_augmentation_type, model_type, replicate,
-                  sample_fraction, history, test_correlations, homolog_rate, output_folder)
+                  sample_fraction, history, test_correlations, homolog_rate, species, output_folder)
 
     # Save plots for performance and loss (no finetuning)
     plot_scatterplots(history, model_output_folder,
@@ -254,7 +253,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Write performance metrics to file (with finetuning)
     write_to_file(model_id, homolog_augmentation_ft_type, model_type, replicate,
-                  sample_fraction, fine_tune_history, test_correlations, homolog_rate, output_folder)
+                  sample_fraction, fine_tune_history, test_correlations, homolog_rate, species, output_folder)
 
     # Save plots for performance and loss (with finetuning)
     plot_scatterplots(fine_tune_history, model_output_folder,
@@ -265,6 +264,9 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
 
 def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, homolog_rate=1.0, species=None):
+    """
+    Trains a DeepSTARR model on the Drosophila S2 enhancers
+    """
     model_type = "DeepSTARR"
     input_shape, encoder = DeepSTARREncoder(SEQUENCE_LENGTH)
     model = n_regression_head(input_shape, encoder, TASKS)
@@ -273,6 +275,9 @@ def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homol
 
 
 def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, homolog_rate=1.0, species=None):
+    """
+    Trains an ExplaiNN model on the Drosophila S2 enhancers
+    """
     model_type = "ExplaiNN"
     input_shape, encoder = ExplaiNNEncoder(SEQUENCE_LENGTH)
     model = n_regression_head(input_shape, encoder, TASKS)
@@ -281,6 +286,9 @@ def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolo
 
 
 def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, homolog_rate=1.0, species=None):
+    """
+    Trains a Motif DeepSTARR model on the Drosophila S2 enhancers
+    """
     model_type = "MotifDeepSTARR"
     input_shape, encoder = MotifDeepSTARREncoder(SEQUENCE_LENGTH)
     model = n_regression_head(input_shape, encoder, TASKS)
@@ -309,14 +317,15 @@ def plot_prediction_vs_actual(model, input_file, output_file_prefix, num_samples
         if count > (num_samples / BATCH_SIZE):
             break
 
-    # Get model predictions
+    # Retrieve model predictions
     data_generator = data_gen(input_file, homolog_folder,
                               num_samples, use_homologs=use_homologs, order=True)
     Y_pred = model.predict(
         data_generator, steps=math.ceil(num_samples / BATCH_SIZE))
 
-    correlations = []
     # Make plots for each task
+    correlations = []
+
     for i, task in enumerate(TASKS):
         correlation_y = stats.pearsonr(Y[i], Y_pred[i].squeeze())[0]
 
@@ -361,15 +370,18 @@ def plot_scatterplots(history, model_output_folder, model_id, name):
 # ====================================================================================================================
 
 
-def write_to_file(model_id, homolog_augmentation_type, model_type, replicate, sample_fraction, history, test_correlations, homolog_rate, output_folder):
+def write_to_file(model_id, homolog_augmentation_type, model_type, replicate, sample_fraction, history, test_correlations, homolog_rate, species, output_folder):
     """Writes model performance to a file"""
 
     correlation_file_path = output_folder + 'model_correlation.tsv'
+    
+    if species is None:
+        species = 'all'
 
     # Generate line to write to file
     line = model_id + "\t" + homolog_augmentation_type + "\t" + model_type + \
         "\t" + str(replicate) + "\t" + str(sample_fraction) + \
-        "\t" + str(homolog_rate) + "\t"
+        "\t" + str(homolog_rate) + "\t" str(species) + '\t'
 
     epochs_total = len(history.history['val_Dense_' + TASKS[0] + '_Pearson'])
     for i, task in enumerate(TASKS):
@@ -391,7 +403,7 @@ def write_to_file(model_id, homolog_augmentation_type, model_type, replicate, sa
         f.close()
     else:
         f = open(correlation_file_path, "w")
-        header_line = "name\thomolog_aug_type\tmodel\treplicate\tfraction\thomolog_rate\t"
+        header_line = "name\thomolog_aug_type\tmodel\treplicate\tfraction\thomolog_rate\tspecies\t"
         for i, task in enumerate(TASKS):
             header_line += "pcc_train_" + task + "\t"
         for i, task in enumerate(TASKS):

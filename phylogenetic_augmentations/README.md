@@ -2,6 +2,8 @@
 
 This folder contains all of the scripts necessary to recreate the phylogenetic augmentation analysis and associated figures.
 
+Note that the runtime of these analyses is dependent on the system being used. All analyses were run using an NVIDIA RTX A400 GPU with 16376MiB of memory.
+
 ## Download data
 The data for the analyses are stored on Zenodo and can be downloaded from there.
 

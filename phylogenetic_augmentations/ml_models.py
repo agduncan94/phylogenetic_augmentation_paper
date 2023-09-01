@@ -1,13 +1,14 @@
 # ####################################################################################################################
 # ml_models.py
 #
-# Class that contains model encoder and decoder implementations
+# Class containing model encoder and decoder implementations
 # ####################################################################################################################
 
 
 # ====================================================================================================================
 # Imports
 # ====================================================================================================================
+
 import pandas as pd
 import numpy as np
 import tensorflow as tf
@@ -33,7 +34,7 @@ from sklearn import metrics
 # Global settings and parameters
 # ====================================================================================================================
 tf.debugging.set_log_device_placement(False)
-ALPHABET_SIZE = 4
+ALPHABET = "ACGT"
 
 # ====================================================================================================================
 # Custom loss and metric functions
@@ -69,8 +70,11 @@ def auprc(y_true, y_pred):
 
 
 def DeepSTARREncoder(sequence_size):
-    """Encoder for DeepSTARR from de Almeida et al"""
+    """
+    Encoder for DeepSTARR from de Almeida et al
+    """
 
+    # Define parameters for the encoder
     params = {
         'kernel_size1': 7,
         'kernel_size2': 3,
@@ -89,7 +93,7 @@ def DeepSTARREncoder(sequence_size):
     }
 
     # Input shape
-    input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
+    input_shape = kl.Input(shape=(sequence_size, len(ALPHABET)))
 
     # Define encoder to create embedding vector
     x = kl.Conv1D(params['num_filters'], kernel_size=params['kernel_size1'],
@@ -122,7 +126,10 @@ def DeepSTARREncoder(sequence_size):
 
 
 def ExplaiNNEncoder(sequence_size):
-    """Encoder for ExplaiNN from Novakosky et al"""
+    """
+    Encoder for ExplaiNN from Novakosky et al
+    """
+
     # Define parameters for the encoder
     params = {
         'padding': 'same',
@@ -134,7 +141,7 @@ def ExplaiNNEncoder(sequence_size):
     }
 
     # Input shape
-    input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
+    input_shape = kl.Input(shape=(sequence_size, len(ALPHABET)))
 
     # Each CNN unit represents a motif
     encoder = []
@@ -170,7 +177,9 @@ def ExplaiNNEncoder(sequence_size):
 
 
 def MotifDeepSTARREncoder(sequence_size):
-    """Encoder for a model like DeepSTARR, but with an interpretable motif layer"""
+    """
+    Encoder for a model like DeepSTARR, but with an interpretable motif layer
+    """
 
     # Define parameters for the encoder
     params = {
@@ -183,7 +192,7 @@ def MotifDeepSTARREncoder(sequence_size):
     }
 
     # Input shape
-    input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
+    input_shape = kl.Input(shape=(sequence_size, len(ALPHABET)))
 
     # Define encoder to create embedding vector
     encoder = kl.Conv1D(params['conv1_shape'], kernel_size=params['conv1_kernel_size'],
@@ -210,7 +219,11 @@ def MotifDeepSTARREncoder(sequence_size):
 
 
 def BassetEncoder(sequence_size):
-    """Encoder for Basset from Kelley et al"""
+    """
+    Encoder for Basset from Kelley et al
+    """
+
+    # Define parameters for the encoder
     params = {
         'kernel_size1': 19,
         'kernel_size2': 11,
@@ -225,12 +238,11 @@ def BassetEncoder(sequence_size):
         'dropout_prob': 0.3,
         'dense_neurons1': 1000,
         'dense_neurons2': 1000,
-        'pad': 'same'}
+        'pad': 'same'
+    }
 
     # Input shape
-    input_shape = kl.Input(shape=(sequence_size, ALPHABET_SIZE))
-
-    # Define encoder to create embedding vector
+    input_shape = kl.Input(shape=(sequence_size, len(ALPHABET)))
 
     # First conv layer
     x = kl.Conv1D(params['num_filters1'], kernel_size=params['kernel_size1'],
@@ -282,10 +294,10 @@ def BassetEncoder(sequence_size):
 
 
 def n_regression_head(input_shape, encoder, tasks):
-    """Regression head that supports an arbitrary number of tasks"""
-    params = {
-        'lr': 0.002
-    }
+    """
+    Regression head that supports an arbitrary number of tasks
+    """
+    lr = 0.002
 
     # Create prediction head per task
     outputs = []
@@ -294,7 +306,7 @@ def n_regression_head(input_shape, encoder, tasks):
                        name=str('Dense_' + task))(encoder))
 
     model = keras.models.Model([input_shape], outputs)
-    model.compile(keras.optimizers.Adam(learning_rate=params['lr']),
+    model.compile(keras.optimizers.Adam(learning_rate=lr),
                   loss=['mse'] * len(tasks),
                   loss_weights=[1] * len(tasks),
                   metrics=[Pearson])
@@ -303,17 +315,17 @@ def n_regression_head(input_shape, encoder, tasks):
 
 
 def basset_head(input_shape, encoder, tasks):
-    """Basset head that supports 164 binary predictions"""
-    params = {
-        'lr': 0.002
-    }
+    """
+    Basset head that supports 164 binary predictions
+    """
+    lr = 0.002
 
     # Create prediction head per task
     output = kl.Dense(
         len(tasks), activation='sigmoid', name=str('Dense_binary'))(encoder)
 
     model = keras.models.Model([input_shape], output)
-    model.compile(keras.optimizers.Adam(learning_rate=params['lr']),
+    model.compile(keras.optimizers.Adam(learning_rate=lr),
                   loss=['binary_crossentropy'],
                   metrics=[tf.keras.metrics.AUC(curve='PR', name="auc_pr"), tf.keras.metrics.AUC(name="auc_roc")])
 
@@ -324,8 +336,18 @@ def basset_head(input_shape, encoder, tasks):
 # ====================================================================================================================
 
 
+def clear_keras(model):
+    """
+    Clear Keras variables to allow multiple models to be trained in one script
+    """
+    del(model)
+    keras.backend.clear_session()
+
+
 def save_model(model_name, model, history, model_output_folder):
-    """Saves a model and its history to a file"""
+    """
+    Saves a model and its history to a file
+    """
     model_json = model.to_json()
     with open(model_output_folder + 'Model_' + model_name + '.json', "w") as json_file:
         json_file.write(model_json)

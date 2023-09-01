@@ -1,7 +1,7 @@
 # ####################################################################################################################
-# perform_drosophila_augmentation_analysis.py
+# perform_basset_augmentation_analysis.py
 #
-# Train model on the Drosophila S2 STARR-seq data
+# Train model on the Basset data
 # ####################################################################################################################
 
 # ====================================================================================================================
@@ -16,9 +16,9 @@ model_types = ['deepstarr', 'motif_deepstarr', 'explainn']
 num_replicates = 3
 sample_fraction = 1.0
 
-file_folder = "../analysis/process_data/drosophila/output/"
-homolog_folder = "../analysis/process_data/drosophila/output/orthologs/"
-output_folder = "./output_drosophila/"
+file_folder = "../analysis/process_data/basset/output/"
+homolog_folder = "../analysis/process_data/basset/output/orthologs/per_species_fa/"
+output_folder = "./output_basset/"
 
 # ====================================================================================================================
 # Main code
@@ -26,15 +26,11 @@ output_folder = "./output_drosophila/"
 
 
 def train_model(use_homologs, model_type, replicate):
-    if model_type == "deepstarr":
-        models.train_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                               homolog_folder, output_folder)
-    elif model_type == "explainn":
-        models.train_explainn(use_homologs, sample_fraction, replicate, file_folder,
-                              homolog_folder, output_folder)
-    elif model_type == "motif_deepstarr":
-        models.train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                                     homolog_folder, output_folder)
+    models.train_basset(use_homologs, sample_fraction, replicate, file_folder,
+                        homolog_folder, output_folder)
+
+    models.fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder,
+                            homolog_folder, output_folder)
 
 
 for model_type in model_types:

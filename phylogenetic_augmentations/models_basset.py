@@ -1,7 +1,7 @@
 # ####################################################################################################################
 # models.py
 #
-# Class to train Keras models on Drosophila S2 and CHEF data
+# Class to train Keras models on the Basset dataset
 # ####################################################################################################################
 
 # ====================================================================================================================
@@ -63,13 +63,16 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 
 def get_batch(split_type, hdf5_file, seq_ids, measurements, indices, use_homologs):
+    """
+    Creates a batch of the input and one-hot encodes the sequences
+    """
 
+    # Retrieve sequences at the given indices
     X_batch_seqs = [seq_ids[i] for i in indices]
 
-    # rint(indices)
+    # One-hot encode sequences
     seqs = utils.one_hot_encode_batch_hdf5(
         split_type, hdf5_file, X_batch_seqs, SEQUENCE_LENGTH, use_homologs)
-
     X = np.nan_to_num(seqs)
     X_batch = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
 
@@ -80,6 +83,10 @@ def get_batch(split_type, hdf5_file, seq_ids, measurements, indices, use_homolog
 
 
 def data_gen(split_type, hdf5_file, y_file, num_samples, shuffle_epoch_end=True, use_homologs=False, order=False, filtered_indices=None):
+    """
+    Generator function for loading input data in batches
+    """
+
     # Get keys from HDF5 file
     seq_ids = []
     with h5py.File(hdf5_file, "r") as f:
@@ -124,17 +131,10 @@ def data_gen(split_type, hdf5_file, y_file, num_samples, shuffle_epoch_end=True,
 # ====================================================================================================================
 
 
-def clear_keras(model):
-    del(model)
-    keras.backend.clear_session()
-
-
 def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices):
     # Parameters for model training
-    params = {
-        'epochs': 20,
-        'early_stop': 10
-    }
+    epochs = 20
+    early_stop = 10
 
     # Create a unique identifier for the model
     model_id = model_type + "_rep" + \
@@ -184,12 +184,12 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     # Fit model using the data generators
     history = model.fit(datagen_train,
                         validation_data=datagen_val,
-                        epochs=params['epochs'],
+                        epochs=epochs,
                         steps_per_epoch=math.ceil(
                             reduced_num_samples_train / BATCH_SIZE),
                         validation_steps=math.ceil(
                             num_samples_val / BATCH_SIZE),
-                        callbacks=[EarlyStopping(patience=params['early_stop'], monitor="val_loss", restore_best_weights=True),
+                        callbacks=[EarlyStopping(patience=early_stop, monitor="val_loss", restore_best_weights=True),
                                    History()])
 
     # Save model (no finetuning)
@@ -231,11 +231,9 @@ def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_
 
 
 def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices=None):
-    model_type = "Basset"
     # Parameters for model fine tuning
-    params = {
-        'fine_tune_epochs': 5
-    }
+    fine_tune_epochs = 5
+    model_type = "Basset"
 
     # Create a unique identifier for the model
     model_id = model_type + "_rep" + \
@@ -291,7 +289,7 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
                                       reduced_num_samples_train / BATCH_SIZE),
                                   validation_steps=math.ceil(
                                       num_samples_val / BATCH_SIZE),
-                                  epochs=params['fine_tune_epochs'])
+                                  epochs=fine_tune_epochs)
 
     # Save model (with finetuning)
     save_model(model_id + "_" + augmentation_ft_type, model,
