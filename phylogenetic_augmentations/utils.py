@@ -19,7 +19,7 @@ import h5py
 
 
 class homolog_fastas:
-    """Class for reading and operating on FASTA files to store homolog information"""
+    """Class for reading and operating on FASTA files to store homolog information. Used for the Drosophila data."""
 
     def __init__(self, fasta_file_path):
         """Initialize object with FASTA file information from the target species"""
@@ -116,6 +116,7 @@ class homolog_fastas:
 
 
 def one_hot_encode_batch_hdf5(split_type, hdf5_file, seq_ids, standardize=None, use_homologs=False):
+    """Class for encoding batches from an hdf5 file. Used for the Basset data."""
     seqs = []
     alphabet = "ACGT"
     with h5py.File(hdf5_file, "r") as f:

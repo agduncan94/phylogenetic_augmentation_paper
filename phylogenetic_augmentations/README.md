@@ -12,13 +12,7 @@ Note that the runtime of these analyses is dependent on the system being used. A
 ## Download data
 The data for the analyses are stored on Zenodo and can be downloaded from there.
 
-This includes the following files:
-* Drosophila S2 training, validation, and testing files
-* Drosphila S2 homolog files
-* Basset training, validation, and testing files
-* Basset homolog files
-
-Once downloaded, place these files in the `./input` directory.
+See `../input/README.md` for instructions.
 
 ## Initialize the conda environment
 Loading from the conda file should create the same environment that was used to run the initial analysis. The analysis requires access to a GPU.
@@ -31,6 +25,7 @@ conda env create -f environment.yml
 conda activate phylogenetic_augmentations
 
 # Install R and R packages
+
 
 ```
 
@@ -55,7 +50,7 @@ Rscript --vanilla plot_phylo_aug_model_results.R
 To run the sampling analysis, run the following commands:
 
 ```
-# Train models on Drosophila S2 data
+# Train models on sampled Drosophila S2 data
 python perform_drosophila_sampling_analysis.py
 
 # Train models on sampled Basset data
@@ -79,3 +74,12 @@ python perform_drosophila_num_species_analysis.py
 # Create final figures
 Rscript --vanilla plot_hyperparameter_analysis.R
 ```
+
+# Misc
+
+## Format of the HDF5 file
+
+For the BASSET data, the training data (including homologs) was too large to load into memory all at once. Instead, the sequences were stored into an HDF5 file with the following structure.
+
+There were three groups: `Training`, `Validation` and `Testing`. Each group contained a subgroup for `sequences`.
+The `sequences` contained a dataset for each sequence from the corresponding set. For the `Training` sequences, this dataset included all homologs for that sequence.

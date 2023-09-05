@@ -51,5 +51,5 @@ for model_type in model_types:
 
             train_model(True, model_type, replicate,
                         fraction, filtered_indices)
-           # train_model(False, model_type, replicate,
-           #             fraction, filtered_indices)
+            train_model(False, model_type, replicate,
+                        fraction, filtered_indices)

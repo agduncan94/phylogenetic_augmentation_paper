@@ -150,5 +150,5 @@ plot_b <- plot_grid(plot, legend, nrow = 2, rel_heights = c(1, .1))
 figure <- plot_grid(plot_a, plot_b, ncol=1, labels=c('A', 'B'), rel_heights = c(1, 0.7,  .1))
 
 # Save a high quality and low quality image
-ggsave("phylo_aug_figure_4.tiff", figure, units="in", width=4, height=4, device='tiff', dpi=350)
-ggsave("phylo_aug_figure_4.jpg", figure, units="in", width=4, height=4)
+ggsave("../figures/phylo_aug_figure_4.tiff", figure, units="in", width=4, height=4, device='tiff', dpi=350)
+ggsave("../figures/phylo_aug_figure_4.jpg", figure, units="in", width=4, height=4)
