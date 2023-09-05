@@ -44,29 +44,27 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 # ====================================================================================================================
 
 
-def get_batch(fasta_obj, data, indices, use_homologs=False, homolog_rate=1.0):
+def get_batch(homolog_obj, data, indices, use_homologs=False, phylo_aug_rate=1.0):
     """
     Creates a batch of the input and one-hot encodes the sequences
     """
 
     # One-hot encode a batch of sequences
-    seqs = fasta_obj.one_hot_encode_batch(
-        indices, SEQUENCE_LENGTH, use_homologs, homolog_rate)
-    X = np.nan_to_num(seqs)
-    X_reshaped = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
+    X_batch = homolog_obj.one_hot_encode_batch(
+        indices, SEQUENCE_LENGTH, use_homologs, phylo_aug_rate)
 
     # Retrieve batch of measurements
-    Y_batch = []
+    Y = []
     for i, task in enumerate(TASKS):
-        Y_batch.append(data[data.columns[i]][indices])
+        Y.append(data[data.columns[i]][indices])
 
     # Create final output
-    Y = [item.to_numpy() for item in Y_batch]
+    Y_batch = [item.to_numpy() for item in Y]
 
-    return X_reshaped, Y
+    return X_batch, Y_batch
 
 
-def data_gen(input_file, homolog_folder, num_samples, shuffle_epoch_end=True, use_homologs=False, species=None, order=False, filtered_indices=None, homolog_rate=1.0):
+def data_gen(input_file, homolog_folder, num_samples, shuffle_epoch_end=True, use_homologs=False, species=None, order=False, filtered_indices=None, phylo_aug_rate=1.0):
     """
     Generator function for loading input data in batches
     """
@@ -79,8 +77,8 @@ def data_gen(input_file, homolog_folder, num_samples, shuffle_epoch_end=True, us
         data = data.iloc[filtered_indices]
         data.reset_index(drop=True, inplace=True)
 
-    # Create FASTA object with homologs
-    fasta_obj = utils.fasta(data)
+    # Create in memory object with homolog sequences
+    homolog_obj = utils.homolog_fastas(data)
 
     # Add homologs to FASTA data structure
     if use_homologs:
@@ -88,7 +86,7 @@ def data_gen(input_file, homolog_folder, num_samples, shuffle_epoch_end=True, us
         for file in os.listdir(directory):
             filename = os.fsdecode(file)
             if filename.endswith(".fa") and (species is None or [ele for ele in species if(ele in filename)]):
-                fasta_obj.add_homolog_sequences(
+                homolog_obj.add_homolog_sequences(
                     os.path.join(homolog_folder, filename))
 
     # Create the batch indices
@@ -100,7 +98,7 @@ def data_gen(input_file, homolog_folder, num_samples, shuffle_epoch_end=True, us
 
     ii = 0
     while True:
-        yield get_batch(fasta_obj, data, indices[ii:ii + BATCH_SIZE], use_homologs, homolog_rate)
+        yield get_batch(homolog_obj, data, indices[ii:ii + BATCH_SIZE], use_homologs, phylo_aug_rate)
         ii += BATCH_SIZE
         if ii >= num_samples:
             ii = 0
@@ -117,7 +115,7 @@ def data_gen(input_file, homolog_folder, num_samples, shuffle_epoch_end=True, us
 # ====================================================================================================================
 
 
-def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, homolog_rate=1.0, species=None):
+def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, phylo_aug_rate=1.0, species=None):
     """
     Train a model
     """
@@ -135,12 +133,11 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     model_output_folder = output_folder + model_id + "/"
     os.makedirs(model_output_folder, exist_ok=True)
 
-    # Determine the number of sequences in the train/val/test sets. Optionally filter based on seq name including a filter.
+    # Determine the number of sequences in the train/val/test sets (subtract 1 for header row)
     train_file = file_folder + "Sequences_Train.txt"
     val_file = file_folder + "Sequences_Val.txt"
     test_file = file_folder + "Sequences_Test.txt"
 
-    # Count number of examples in each split (minus 1 for header row)
     num_samples_train = utils.count_lines_in_file(
         train_file) - 1
     num_samples_val = utils.count_lines_in_file(
@@ -158,7 +155,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
           " (" + str(num_samples_train) + ")")
     if use_homologs:
         print('Use phylogenetic augmentations: True')
-        print('Phylogenetic augmentation rate: ' + str(homolog_rate))
+        print('Phylogenetic augmentation rate: ' + str(phylo_aug_rate))
     else:
         print('Use phylogenetic augmentations: False')
 
@@ -166,14 +163,14 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
         print('Species: ' + species)
     print('\n')
 
-    # Sample a fraction of the original training data
+    # Sample a fraction of the original training data (if specified)
     reduced_num_samples_train = int(num_samples_train * sample_fraction)
     filtered_indices = np.random.choice(
         list(range(num_samples_train)), reduced_num_samples_train, replace=False)
 
     # Data generators for training and validation sets used during model training
     datagen_train = data_gen(train_file,
-                             homolog_folder, reduced_num_samples_train, use_homologs=use_homologs, species=species, filtered_indices=filtered_indices, homolog_rate=homolog_rate)
+                             homolog_folder, reduced_num_samples_train, use_homologs=use_homologs, species=species, filtered_indices=filtered_indices, phylo_aug_rate=phylo_aug_rate)
     datagen_val = data_gen(val_file,
                            homolog_folder, num_samples_val)
 
@@ -194,11 +191,11 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     else:
         homolog_augmentation_type = 'none'
 
-    # Save model (no finetuning)
+    # Save model
     save_model(model_id + "_" + homolog_augmentation_type,
                model, history, model_output_folder)
 
-    # Plot test performance on a scatterplot (no finetuning)
+    # Plot test performance on a scatterplot
     test_correlations = plot_prediction_vs_actual(model, test_file,
                                                   model_output_folder + 'Model_' + model_id + "_" +
                                                   homolog_augmentation_type + "_Test",
@@ -206,15 +203,15 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                                                   homolog_folder,
                                                   False)
 
-    # Write performance metrics to file (no finetuning)
+    # Write performance metrics to file
     write_to_file(model_id, homolog_augmentation_type, model_type, replicate,
-                  sample_fraction, history, test_correlations, homolog_rate, species, output_folder)
+                  sample_fraction, history, test_correlations, phylo_aug_rate, species, output_folder)
 
-    # Save plots for performance and loss (no finetuning)
+    # Save plots for performance and loss
     plot_scatterplots(history, model_output_folder,
                       model_id, homolog_augmentation_type)
 
-    # Perform finetuning on the original training only
+    # Perform fine-tuning on the original training only
     model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=1e-4, weight_decay=1e-6),
                   loss=['mse'] * len(TASKS),
                   loss_weights=[1] * len(TASKS),
@@ -234,7 +231,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                                       num_samples_val / BATCH_SIZE),
                                   epochs=fine_tune_epochs)
 
-    # Save model (with finetuning)
+    # Save model
     if use_homologs:
         homolog_augmentation_ft_type = 'homologs_finetune'
     else:
@@ -243,7 +240,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     save_model(model_id + "_" + homolog_augmentation_ft_type, model,
                fine_tune_history, model_output_folder)
 
-    # Plot test performance on a scatterplot (with finetuning)
+    # Plot test performance on a scatterplot
     test_correlations = plot_prediction_vs_actual(model, test_file,
                                                   model_output_folder + 'Model_' + model_id +
                                                   "_" + homolog_augmentation_ft_type + "_Test",
@@ -251,11 +248,11 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                                                   homolog_folder,
                                                   False)
 
-    # Write performance metrics to file (with finetuning)
+    # Write performance metrics to file
     write_to_file(model_id, homolog_augmentation_ft_type, model_type, replicate,
-                  sample_fraction, fine_tune_history, test_correlations, homolog_rate, species, output_folder)
+                  sample_fraction, fine_tune_history, test_correlations, phylo_aug_rate, species, output_folder)
 
-    # Save plots for performance and loss (with finetuning)
+    # Save plots for performance and loss
     plot_scatterplots(fine_tune_history, model_output_folder,
                       model_id, homolog_augmentation_ft_type)
 
@@ -263,7 +260,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     clear_keras(model)
 
 
-def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, homolog_rate=1.0, species=None):
+def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, phylo_aug_rate=1.0, species=None):
     """
     Trains a DeepSTARR model on the Drosophila S2 enhancers
     """
@@ -271,10 +268,10 @@ def train_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homol
     input_shape, encoder = DeepSTARREncoder(SEQUENCE_LENGTH)
     model = n_regression_head(input_shape, encoder, TASKS)
     train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, homolog_rate, species)
+          file_folder, homolog_folder, output_folder, phylo_aug_rate, species)
 
 
-def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, homolog_rate=1.0, species=None):
+def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, phylo_aug_rate=1.0, species=None):
     """
     Trains an ExplaiNN model on the Drosophila S2 enhancers
     """
@@ -282,10 +279,10 @@ def train_explainn(use_homologs, sample_fraction, replicate, file_folder, homolo
     input_shape, encoder = ExplaiNNEncoder(SEQUENCE_LENGTH)
     model = n_regression_head(input_shape, encoder, TASKS)
     train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, homolog_rate, species)
+          file_folder, homolog_folder, output_folder, phylo_aug_rate, species)
 
 
-def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, homolog_rate=1.0, species=None):
+def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, phylo_aug_rate=1.0, species=None):
     """
     Trains a Motif DeepSTARR model on the Drosophila S2 enhancers
     """
@@ -293,7 +290,7 @@ def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
     input_shape, encoder = MotifDeepSTARREncoder(SEQUENCE_LENGTH)
     model = n_regression_head(input_shape, encoder, TASKS)
     train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, homolog_rate, species)
+          file_folder, homolog_folder, output_folder, phylo_aug_rate, species)
 
 
 # ====================================================================================================================
@@ -302,9 +299,11 @@ def train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
 
 
 def plot_prediction_vs_actual(model, input_file, output_file_prefix, num_samples, homolog_folder, use_homologs=False):
-    """Plots the predicted vs actual activity for each task on given input set"""
+    """
+    Plots the predicted vs actual activity for each task on given input set
+    """
 
-    # Load the activity data
+    # Load the actual labels
     Y = []
     for task in TASKS:
         Y.append(np.array([]))
@@ -346,7 +345,9 @@ def plot_prediction_vs_actual(model, input_file, output_file_prefix, num_samples
 
 
 def plot_scatterplot(history, a, b, x, y, title, filename):
-    """Plots a scatterplot and saves to file"""
+    """
+    Plots a scatterplot and saves to file
+    """
     plt.plot(history.history[a])
     plt.plot(history.history[b])
     plt.title(title)
@@ -358,7 +359,9 @@ def plot_scatterplot(history, a, b, x, y, title, filename):
 
 
 def plot_scatterplots(history, model_output_folder, model_id, name):
-    """Plots model performance and loss for each task of a given model"""
+    """
+    Plots model performance and loss for each task of a given model
+    """
     for task in TASKS:
         plot_scatterplot(history, 'Dense_' + task + '_Pearson', 'val_Dense_' + task + '_Pearson', 'PCC', 'epoch', 'Model performance ' +
                          task + ' (Pearson)', model_output_folder + 'Model_' + model_id + '_' + name + '_' + task + '_pearson.png')
@@ -370,18 +373,20 @@ def plot_scatterplots(history, model_output_folder, model_id, name):
 # ====================================================================================================================
 
 
-def write_to_file(model_id, homolog_augmentation_type, model_type, replicate, sample_fraction, history, test_correlations, homolog_rate, species, output_folder):
-    """Writes model performance to a file"""
+def write_to_file(model_id, homolog_augmentation_type, model_type, replicate, sample_fraction, history, test_correlations, phylo_aug_rate, species, output_folder):
+    """
+    Writes model performance to a file
+    """
 
     correlation_file_path = output_folder + 'model_correlation.tsv'
-    
+
     if species is None:
         species = 'all'
 
     # Generate line to write to file
     line = model_id + "\t" + homolog_augmentation_type + "\t" + model_type + \
         "\t" + str(replicate) + "\t" + str(sample_fraction) + \
-        "\t" + str(homolog_rate) + "\t" str(species) + '\t'
+        "\t" + str(phylo_aug_rate) + "\t" str(species) + '\t'
 
     epochs_total = len(history.history['val_Dense_' + TASKS[0] + '_Pearson'])
     for i, task in enumerate(TASKS):
@@ -403,7 +408,7 @@ def write_to_file(model_id, homolog_augmentation_type, model_type, replicate, sa
         f.close()
     else:
         f = open(correlation_file_path, "w")
-        header_line = "name\thomolog_aug_type\tmodel\treplicate\tfraction\thomolog_rate\tspecies\t"
+        header_line = "name\thomolog_aug_type\tmodel\treplicate\tfraction\tphylo_aug_rate\tspecies\t"
         for i, task in enumerate(TASKS):
             header_line += "pcc_train_" + task + "\t"
         for i, task in enumerate(TASKS):

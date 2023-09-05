@@ -1,10 +1,20 @@
+# ####################################################################################################################
+# plot_phylo_aug_model_results.R
+#
 # Visualize the test performance of different model architectures on the Drosophila S2 enhancer data and Basset data
+# ####################################################################################################################
 
-# Import libraries
+# ====================================================================================================================
+# Imports
+# ====================================================================================================================
 library(tidyverse)
 library(cowplot)
 
+# ====================================================================================================================
 # Common functions
+# ====================================================================================================================
+
+# Summarize data (mean and standard deviation)
 data_summary <- function(data, varname, groupnames){
   require(plyr)
   summary_func <- function(x, col){
@@ -17,8 +27,10 @@ data_summary <- function(data, varname, groupnames){
   return(data_sum)
 }
 
-# '#A9A9A9', '#E69F00', '#7fc97f','#7393B3'
-# '#a6cee3', '#1f78b4', '#b2df8a','#33a02c'
+# ====================================================================================================================
+# Main code
+# ====================================================================================================================
+
 # Load Drosophila data
 drosophila_corr_df <- read_tsv("./output_drosophila_augs_rerun/model_correlation.tsv")
 
@@ -30,11 +42,10 @@ drosophila_corr_df$model <- factor(drosophila_corr_df$model)
 drosophila_corr_df$model <- fct_relevel(drosophila_corr_df$model, c('deepstarr', 'explainn', 'motif_deepstarr'))
 drosophila_corr_df$model <- fct_recode(drosophila_corr_df$model, `DeepSTARR` = "deepstarr", `ExplaiNN` = "explainn", `Motif DeepSTARR` = "motif_deepstarr")
 
-
 # Create plot for Development task
 drosophila_corr_summary_dev_df <- data_summary(drosophila_corr_df, varname="pcc_test_Dev", 
                                                groupnames=c("model", "homolog_aug_type"))
-plot_a <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_test_Dev, colour=homolog_aug_type, fill=homolog_aug_type)) +
+plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_test_Dev, colour=homolog_aug_type, fill=homolog_aug_type)) +
   geom_point(data=drosophila_corr_df, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = pcc_test_Dev-sd, ymax = pcc_test_Dev+sd), width=.4, position=position_dodge(.9), colour="black") +
   theme_bw() +
@@ -47,10 +58,9 @@ plot_a <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_test_Dev, co
         axis.title=element_text(size=14), axis.text = element_text(size=12), legend.title = element_text(size=13),
         legend.text = element_text(size=13), panel.border = element_rect(colour = "black", fill=NA, size=1))
 
-
 drosophila_corr_summary_hk_df <- data_summary(drosophila_corr_df, varname="pcc_test_Hk", 
                                               groupnames=c("model", "homolog_aug_type"))
-plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_test_Hk, colour=homolog_aug_type, fill=homolog_aug_type)) +
+plot_hk <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_test_Hk, colour=homolog_aug_type, fill=homolog_aug_type)) +
   geom_point(data=drosophila_corr_df, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = pcc_test_Hk-sd, ymax = pcc_test_Hk+sd), width=.4, position=position_dodge(.9), colour="black") +
   theme_bw() +
@@ -64,18 +74,14 @@ plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_test_Hk, colo
         legend.background = element_rect(size=0.5, linetype="solid", colour="black", fill="white")) +
   guides(colour=guide_legend(title="Type"), fill='none')
 
-grobs <- ggplotGrob(plot_b)$grobs
-plot_b <- plot_b + theme(legend.position="none")
+grobs <- ggplotGrob(plot_hk)$grobs
+plot_hk <- plot_hk + theme(legend.position="none")
 
-# Create vertical plot
 # Combine plots
-plot <- plot_grid(plot_a, plot_b, ncol=2)
+plot_a <- plot_grid(plot_dev, plot_hk, ncol=2)
 
 # Add shared legend
 legend <- grobs[[which(sapply(grobs, function(x) x$name) == "guide-box")]]
-final_plot <- plot_grid(plot, legend, nrow = 2, rel_heights = c(1, .1))
-
-drosophila_plot <- plot
 
 # Load Basset data
 basset_df <- read_tsv("./output_basset/model_metrics.tsv")
@@ -90,7 +96,7 @@ basset_df <- basset_df %>% filter(fraction == 1.0)
 basset_summary_df <- data_summary(basset_df, varname="mean_test_pr", 
                                   groupnames=c("type", "model"))
 
-plot_c <- ggplot(basset_summary_df, aes(x=model, y=mean_test_pr, colour=type, fill=type)) +
+plot_basset <- ggplot(basset_summary_df, aes(x=model, y=mean_test_pr, colour=type, fill=type)) +
   geom_point(data=basset_df, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = mean_test_pr-sd, ymax = mean_test_pr+sd), width=.2, position=position_dodge(.9), colour="black") +
   theme_bw() +
@@ -102,6 +108,9 @@ plot_c <- ggplot(basset_summary_df, aes(x=model, y=mean_test_pr, colour=type, fi
         axis.title=element_text(size=13), axis.text = element_text(size = 13), legend.text = element_text(size=13),
         panel.border = element_rect(colour = "black", fill=NA, size=1))
 
-basset_plot <- plot_grid(plot_c, legend, ncol=2)
-figure <- plot_grid(drosophila_plot, basset_plot, ncol=1, labels=c('A', 'B'), rel_heights = c(1, 1,  .1))
-figure
+plot_b <- plot_grid(plot_basset, legend, ncol=2)
+figure <- plot_grid(plot_a, plot_b, ncol=1, labels=c('A', 'B'), rel_heights = c(1, 1,  .1))
+
+# Save a high quality and low quality image
+ggsave("phylo_aug_figure_2.tiff", figure, units="in", width=4, height=4, device='tiff', dpi=350)
+ggsave("phylo_aug_figure_2.jpg", figure, units="in", width=4, height=4)

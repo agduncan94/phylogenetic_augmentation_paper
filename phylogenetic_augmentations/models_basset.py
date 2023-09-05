@@ -71,10 +71,8 @@ def get_batch(split_type, hdf5_file, seq_ids, measurements, indices, use_homolog
     X_batch_seqs = [seq_ids[i] for i in indices]
 
     # One-hot encode sequences
-    seqs = utils.one_hot_encode_batch_hdf5(
+    X_batch = utils.one_hot_encode_batch_hdf5(
         split_type, hdf5_file, X_batch_seqs, SEQUENCE_LENGTH, use_homologs)
-    X = np.nan_to_num(seqs)
-    X_batch = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
 
     # Retrieve batch of measurements
     Y_batch = measurements.iloc[indices]
@@ -95,6 +93,7 @@ def data_gen(split_type, hdf5_file, y_file, num_samples, shuffle_epoch_end=True,
 
     # Read measurement file (TODO: Use HDF5 file)
     measurements = pd.read_table(y_file)
+    measurements.drop(labels=['Seq', 'Name'], axis=1, inplace=True)
 
     # Sample the seq ids and measurements
     if (filtered_indices is not None):
@@ -132,6 +131,10 @@ def data_gen(split_type, hdf5_file, y_file, num_samples, shuffle_epoch_end=True,
 
 
 def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices):
+    """
+    Train a model
+    """
+
     # Parameters for model training
     epochs = 20
     early_stop = 10
@@ -146,11 +149,11 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Determine the number of sequences in the train/val/test sets
     num_samples_train = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Train.txt") - 1
+        file_folder + "Sequences_Train.txt") - 1
     num_samples_val = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Val.txt") - 1
+        file_folder + "Sequences_Val.txt") - 1
     num_samples_test = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Test.txt") - 1
+        file_folder + "Sequences_Test.txt") - 1
 
     # Print summary information about the model
     print('\n')
@@ -158,7 +161,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     print('Model ID: ' + model_id)
     print('Replicate: ' + str(replicate))
     print('Fraction of training data: ' + str(sample_fraction) +
-          " (" + str(num_samples_train) + ")")
+          " (" + str(int(sample_fraction * num_samples_train)) + ")")
     if use_homologs:
         print('Use phylogenetic augmentations: True')
     else:
@@ -168,17 +171,15 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     # Sample a fraction of the original training data
     if int(sample_fraction) < 1:
         reduced_num_samples_train = int(num_samples_train * sample_fraction)
-        filtered_indices = np.random.choice(
-            list(range(num_samples_train)), reduced_num_samples_train, replace=False)
     else:
         reduced_num_samples_train = num_samples_train
         filtered_indices = None
 
     # Data generators for train and val sets used during initial training
-    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Train.txt",
+    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Train.txt",
                              reduced_num_samples_train, use_homologs=use_homologs, filtered_indices=filtered_indices)
 
-    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Val.txt",
+    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Val.txt",
                            num_samples_val)
 
     # Fit model using the data generators
@@ -192,7 +193,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                         callbacks=[EarlyStopping(patience=early_stop, monitor="val_loss", restore_best_weights=True),
                                    History()])
 
-    # Save model (no finetuning)
+    # Save model
     if use_homologs:
         augmentation_type = 'homologs'
     else:
@@ -201,7 +202,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     save_model(model_id + "_" + augmentation_type,
                model, history, model_output_folder)
 
-    # Write performance metrics to file (no finetuning)
+    # Write performance metrics to file
     epochs = len(history.history['loss'])
     auc_pr = history.history['auc_pr'][epochs-1]
     validation_auc_pr = history.history['val_auc_pr'][epochs-1]
@@ -209,12 +210,12 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     validation_auc_roc = history.history['val_auc_roc'][epochs-1]
 
     avg_auc, aucs, avg_precision, precisions, tf_aucroc, tf_auprc = plot_prediction_vs_actual(
-        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, homolog_folder, False)
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, homolog_folder, False)
 
     write_to_file(model_id, augmentation_type, model_type, replicate,
                   sample_fraction, history, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, tf_aucroc, tf_auprc, output_folder)
 
-    # Save plots for performance and loss (no finetuning)
+    # Save plots for performance and loss
     plot_scatterplots(history, model_output_folder,
                       model_id, augmentation_type)
 
@@ -223,6 +224,9 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
 
 def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices=None):
+    """
+    Trains a Basset model on the Basset dataset
+    """
     model_type = "Basset"
     input_shape, encoder = BassetEncoder(SEQUENCE_LENGTH)
     model = basset_head(input_shape, encoder, TASKS)
@@ -231,6 +235,10 @@ def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_
 
 
 def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices=None):
+    """
+    Fine-tune a model
+    """
+
     # Parameters for model fine tuning
     fine_tune_epochs = 5
     model_type = "Basset"
@@ -245,11 +253,11 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
 
     # Determine the number of sequences in the train/val/test sets
     num_samples_train = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Train.txt") - 1
+        file_folder + "Sequences_Train.txt") - 1
     num_samples_val = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Val.txt") - 1
+        file_folder + "Sequences_Val.txt") - 1
     num_samples_test = utils.count_lines_in_file(
-        file_folder + "Sequences_activity_Test.txt") - 1
+        file_folder + "Sequences_Test.txt") - 1
 
     # Sample a reduced set of sequences for training
     if int(sample_fraction) < 1:
@@ -276,10 +284,10 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
                   metrics=[tf.keras.metrics.AUC(curve='PR', name="auc_pr_ft"), tf.keras.metrics.AUC(name="auc_roc_ft")])
 
     # Update data generator to not use homologs (not needed for fine-tuning)
-    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Train.txt",
+    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Train.txt",
                              reduced_num_samples_train, use_homologs=False, filtered_indices=filtered_indices)
 
-    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Val.txt",
+    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Val.txt",
                            num_samples_val)
 
     # Fit the model using new generator
@@ -291,11 +299,11 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
                                       num_samples_val / BATCH_SIZE),
                                   epochs=fine_tune_epochs)
 
-    # Save model (with finetuning)
+    # Save the model
     save_model(model_id + "_" + augmentation_ft_type, model,
                fine_tune_history, model_output_folder)
 
-    # Write performance metrics to file (with finetuning)
+    # Write performance metrics to file
     epochs = len(fine_tune_history.history['loss'])
     auc_pr = fine_tune_history.history['auc_pr_ft'][epochs-1]
     validation_auc_pr = fine_tune_history.history['val_auc_pr_ft'][epochs-1]
@@ -303,12 +311,12 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
     validation_auc_roc = fine_tune_history.history['val_auc_roc_ft'][epochs-1]
 
     avg_auc, aucs, avg_precision, precisions, tf_aucroc, tf_auprc = plot_prediction_vs_actual(
-        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_activity_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, homolog_folder, False)
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, homolog_folder, False)
 
     write_to_file(model_id, augmentation_ft_type, model_type, replicate,
                   sample_fraction, fine_tune_history, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, tf_aucroc, tf_auprc, output_folder)
 
-    # Save plots for performance and loss (with finetuning)
+    # Save plots for performance and loss
     plot_scatterplots(fine_tune_history, model_output_folder,
                       model_id, augmentation_ft_type)
 

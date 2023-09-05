@@ -2,7 +2,12 @@
 
 This folder contains all of the scripts necessary to recreate the phylogenetic augmentation analysis and associated figures.
 
-Note that the runtime of these analyses is dependent on the system being used. All analyses were run using an NVIDIA RTX A400 GPU with 16376MiB of memory.
+Note that the runtime of these analyses is dependent on the system being used. All analyses were run on an Ubuntu workstation with the following specs:
+
+* Ubuntu 20.04.6 LTS
+* Intel Core i9-10900X CPU @ 3.70GHz x 20
+* NVIDIA RTX A400 GPU with 16376MiB of memory
+* 31.1 GiB of memory
 
 ## Download data
 The data for the analyses are stored on Zenodo and can be downloaded from there.
@@ -25,7 +30,7 @@ conda env create -f environment.yml
 # Activate conda environment
 conda activate phylogenetic_augmentations
 
-# Install R packages
+# Install R and R packages
 
 ```
 
@@ -73,16 +78,4 @@ python perform_drosophila_num_species_analysis.py
 
 # Create final figures
 Rscript --vanilla plot_hyperparameter_analysis.R
-```
-
-# Recreating some of the datasets
-
-## Extracting homologs from hal alignments
-```
-# Foo
-```
-
-## Getting a sorted list of species from an alignment
-```
-# Foo
 ```

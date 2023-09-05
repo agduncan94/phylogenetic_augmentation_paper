@@ -14,12 +14,12 @@ import random
 import h5py
 
 # ====================================================================================================================
-# FASTA class
+# Homolog FASTA class
 # ====================================================================================================================
 
 
-class fasta:
-    """Class for reading and operating on FASTA files"""
+class homolog_fastas:
+    """Class for reading and operating on FASTA files to store homolog information"""
 
     def __init__(self, fasta_file_path):
         """Initialize object with FASTA file information from the target species"""
@@ -63,7 +63,7 @@ class fasta:
                     self.fasta_dict[split_name].append(seq)
 
     def one_hot_encode_batch(self, indices, standardize=None, use_homologs=False, homolog_rate=1.0):
-        """One hot encode a batch of """
+        """One hot encode a batch of sequences"""
         seqs = []
 
         # Augment sequences with homologs and reverse complement
@@ -101,7 +101,10 @@ class fasta:
             one_hot_data.append(one_hot_seq)
         one_hot_data = np.array(one_hot_data)
 
-        return one_hot_data
+        X = np.nan_to_num(one_hot_data)
+        X_batch = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
+
+        return X_batch
 
     def rev_comp_augmentation(self, seq):
         """Apply reverse complement randomly to input sequence"""
@@ -137,7 +140,10 @@ def one_hot_encode_batch_hdf5(split_type, hdf5_file, seq_ids, standardize=None, 
             one_hot_data.append(seq.astype(float))
         one_hot_data = np.array(one_hot_data)
 
-    return one_hot_data
+    X = np.nan_to_num(one_hot_data)
+    X_batch = X.reshape((X.shape[0], X.shape[1], X.shape[2]))
+
+    return X_batch
 
 
 def reverse_complement(dna):

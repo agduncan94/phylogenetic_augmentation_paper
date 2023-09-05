@@ -305,6 +305,7 @@ def n_regression_head(input_shape, encoder, tasks):
         outputs.append(kl.Dense(1, activation='linear',
                        name=str('Dense_' + task))(encoder))
 
+    # Compile the model
     model = keras.models.Model([input_shape], outputs)
     model.compile(keras.optimizers.Adam(learning_rate=lr),
                   loss=['mse'] * len(tasks),
@@ -324,6 +325,7 @@ def basset_head(input_shape, encoder, tasks):
     output = kl.Dense(
         len(tasks), activation='sigmoid', name=str('Dense_binary'))(encoder)
 
+    # Compile the model
     model = keras.models.Model([input_shape], output)
     model.compile(keras.optimizers.Adam(learning_rate=lr),
                   loss=['binary_crossentropy'],
@@ -348,11 +350,12 @@ def save_model(model_name, model, history, model_output_folder):
     """
     Saves a model and its history to a file
     """
+    model_name_extended = model_output_folder + 'Model_' + model_name
     model_json = model.to_json()
-    with open(model_output_folder + 'Model_' + model_name + '.json', "w") as json_file:
-        json_file.write(model_json)
+    with open(model_name_extended + '.json', "w") as file:
+        file.write(model_json)
 
-    model.save_weights(model_output_folder + 'Model_' + model_name + '.h5')
+    model.save_weights(model_name_extended + '.h5')
 
-    with open(model_output_folder + 'Model_' + model_name + '_history', 'wb') as file_pi:
-        pickle.dump(history.history, file_pi)
+    with open(model_name_extended + '_history', 'wb') as file:
+        pickle.dump(history.history, file)
