@@ -38,7 +38,7 @@ drosophila_corr_df <- read_tsv("./drosophila/output_drosophila_num_species/model
 drosophila_corr_df$type <- factor(drosophila_corr_df$type)
 drosophila_corr_df$type <- fct_relevel(drosophila_corr_df$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
 drosophila_corr_df <- drosophila_corr_df %>% filter(type == 'homologs_finetune')
-drosophila_corr_df$type <- fct_recode(drosophila_corr_df$type, `None` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
+drosophila_corr_df$type <- fct_recode(drosophila_corr_df$type, `Baseline` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
 
 #drosophila_corr_df <- drosophila_corr_df %>% separate('model', c('model', 'num_species'), sep='_')
 #drosophila_corr_df$num_species <- as.integer(drosophila_corr_df$num_species)
@@ -98,7 +98,7 @@ drosophila_pcc$homolog_aug_type <- fct_relevel(drosophila_pcc$homolog_aug_type, 
 
 # Filter out homolog_aug_types not needed
 drosophila_pcc <- drosophila_pcc %>% filter(homolog_aug_type %in% c('homologs_finetune'))
-drosophila_pcc$homolog_aug_type <- fct_recode(drosophila_pcc$homolog_aug_type, `None` = "none", `FT` = "finetune", `Phylo Aug` = "homologs", `Phylo Aug + FT` = "homologs_finetune")
+drosophila_pcc$homolog_aug_type <- fct_recode(drosophila_pcc$homolog_aug_type, `Baseline` = "none", `FT` = "finetune", `Phylo Aug` = "homologs", `Phylo Aug + FT` = "homologs_finetune")
 
 
 # Summarize developmental data and plot

@@ -39,7 +39,7 @@ drosophila_pcc$type <- factor(drosophila_pcc$type)
 drosophila_pcc$fraction <- factor(drosophila_pcc$fraction)
 drosophila_pcc$type <- fct_relevel(drosophila_pcc$type, c('none', 'homologs', 'homologs_finetune', 'finetune'))
 drosophila_pcc <- drosophila_pcc %>% filter(type %in% c('none', 'homologs_finetune'))
-drosophila_pcc$type <- fct_recode(drosophila_pcc$type, `None` = "none", `Phylo Aug + FT` = "homologs_finetune")
+drosophila_pcc$type <- fct_recode(drosophila_pcc$type, `Baseline` = "none", `Phylo Aug + FT` = "homologs_finetune")
 
 # Create plot for Development task
 drosophila_corr_summary_dev_df <- data_summary(drosophila_pcc, varname="pcc_test_Dev", 
@@ -92,7 +92,7 @@ basset_df$fraction <- factor(basset_df$fraction)
 basset_df$type <- fct_relevel(basset_df$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
 basset_df <- basset_df %>% filter(type %in% c('none', 'homologs_finetune'))
 
-basset_df$type <- fct_recode(basset_df$type, `None` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
+basset_df$type <- fct_recode(basset_df$type, `Baseline` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
 basset_df$model <- fct_recode(basset_df$model, `Basset` = "basset")
 
 # Create a plot for the Basset data

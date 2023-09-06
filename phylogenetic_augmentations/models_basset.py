@@ -220,7 +220,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                       model_id, augmentation_type)
 
     # Clear the model from memory
-    clear_keras(model)
+    reset_keras(model)
 
 
 def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices=None):
@@ -319,6 +319,9 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
     # Save plots for performance and loss
     plot_scatterplots(fine_tune_history, model_output_folder,
                       model_id, augmentation_ft_type)
+    
+    # Clear the model from memory
+    reset_keras(model)
 
 # ====================================================================================================================
 # Plot model performance for basset
