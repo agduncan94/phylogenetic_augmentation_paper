@@ -19,16 +19,28 @@ Loading from the conda file should create the same environment that was used to 
 
 ```
 # Load the conda environment from file
-conda env create -f environment.yml
+conda create --name phylogenetic_augmentations python=3.8 cudatoolkit=11.2.2
 
-# Activate conda environment
+# Activate the conda env
 conda activate phylogenetic_augmentations
 
-# Install R and R packages
-
+# Install libraries via pip
+pip install -r requirements.txt
 
 ```
 
+## Optional: Run script on a small example set
+
+The following optional code will run phylogenetic augmentations on a small example set (10% of the drosophila data) to validate everything is installed and connected:
+
+```
+# Train a DeepSTARR model on test data
+python perform_drosophila_test.py
+
+# Create a figure
+Rscript --vanilla plot_drosophila_test.R
+
+```
 
 ## Perform model analysis (Figure 1)
 

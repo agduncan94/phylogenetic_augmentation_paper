@@ -16,12 +16,11 @@ import models_basset as models
 # ====================================================================================================================
 model_types = ['basset']
 num_replicates = 3
-#fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 1.0]
-fractions = [0.2, 0.3, 0.4, 0.5]
+fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 1.0]
 
 file_folder = "../analysis/process_data/basset/output/"
 homolog_folder = "../analysis/process_data/basset/output/orthologs/per_species_fa/"
-output_folder = "./output_basset_sampling_trial/"
+output_folder = "./output_basset_sampling_trial_3/"
 
 # ====================================================================================================================
 # Main code

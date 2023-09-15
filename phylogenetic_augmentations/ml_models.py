@@ -345,7 +345,7 @@ def reset_keras(model):
     sess = tf.compat.v1.keras.backend.get_session()
 
     try:
-        del model  # this is from global space - change this as you need
+        del model
     except:
         pass
 

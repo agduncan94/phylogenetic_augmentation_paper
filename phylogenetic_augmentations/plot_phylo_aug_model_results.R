@@ -32,42 +32,42 @@ data_summary <- function(data, varname, groupnames){
 # ====================================================================================================================
 
 # Load Drosophila data
-drosophila_corr_df <- read_tsv("./output_drosophila_augs_rerun/model_correlation.tsv")
+drosophila_corr_df <- read_tsv("../output/drosophila_augmentation_metrics.tsv")
 
 # Clean up values for display
-drosophila_corr_df$homolog_aug_type <- factor(drosophila_corr_df$homolog_aug_type)
-drosophila_corr_df$homolog_aug_type <- fct_relevel(drosophila_corr_df$homolog_aug_type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
-drosophila_corr_df$homolog_aug_type <- fct_recode(drosophila_corr_df$homolog_aug_type, `Baseline` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
+drosophila_corr_df$type <- factor(drosophila_corr_df$type)
+drosophila_corr_df$type <- fct_relevel(drosophila_corr_df$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
+drosophila_corr_df$type <- fct_recode(drosophila_corr_df$type, `Baseline` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
 drosophila_corr_df$model <- factor(drosophila_corr_df$model)
 drosophila_corr_df$model <- fct_relevel(drosophila_corr_df$model, c('deepstarr', 'explainn', 'motif_deepstarr'))
 drosophila_corr_df$model <- fct_recode(drosophila_corr_df$model, `DeepSTARR` = "deepstarr", `ExplaiNN` = "explainn", `Motif DeepSTARR` = "motif_deepstarr")
 
 # Create plot for Development task
 drosophila_corr_summary_dev_df <- data_summary(drosophila_corr_df, varname="pcc_test_Dev", 
-                                               groupnames=c("model", "homolog_aug_type"))
-plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_test_Dev, colour=homolog_aug_type, fill=homolog_aug_type)) +
+                                               groupnames=c("model", "type"))
+plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_test_Dev, colour=type, fill=type)) +
   geom_point(data=drosophila_corr_df, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = pcc_test_Dev-sd, ymax = pcc_test_Dev+sd), width=.4, position=position_dodge(.9), colour="black") +
   theme_bw() +
   scale_color_manual(values=c('#A9A9A9', '#E69F00', '#7fc97f','#7393B3')) +
   xlab("") +
   ylab("Test set performance (PCC)") +
-  ggtitle('Developmental task') +
+  ggtitle('Developmental enhancer activity') +
   theme(legend.position="none",
         plot.title = element_text(hjust = 0.5),
         axis.title=element_text(size=14), axis.text = element_text(size=12), legend.title = element_text(size=13),
         legend.text = element_text(size=13), panel.border = element_rect(colour = "black", fill=NA, size=1))
 
 drosophila_corr_summary_hk_df <- data_summary(drosophila_corr_df, varname="pcc_test_Hk", 
-                                              groupnames=c("model", "homolog_aug_type"))
-plot_hk <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_test_Hk, colour=homolog_aug_type, fill=homolog_aug_type)) +
+                                              groupnames=c("model", "type"))
+plot_hk <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_test_Hk, colour=type, fill=type)) +
   geom_point(data=drosophila_corr_df, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = pcc_test_Hk-sd, ymax = pcc_test_Hk+sd), width=.4, position=position_dodge(.9), colour="black") +
   theme_bw() +
   scale_color_manual(values=c('darkgrey', '#E69F00', '#7fc97f','#7393B3')) +
   xlab("") +
   ylab("Test set performance (PCC)") +
-  ggtitle('Housekeeping task') +
+  ggtitle('Housekeeping enhancer activity') +
   theme(legend.position="right", plot.title = element_text(hjust = 0.5),
         axis.title=element_text(size=14), axis.text = element_text(size=12), legend.title = element_text(size=12),
         legend.text = element_text(size=11), panel.border = element_rect(colour = "black", fill=NA, size=1),
@@ -84,7 +84,7 @@ plot_a <- plot_grid(plot_dev, plot_hk, ncol=2)
 legend <- grobs[[which(sapply(grobs, function(x) x$name) == "guide-box")]]
 
 # Load Basset data
-basset_df <- read_tsv("./output_basset/model_metrics.tsv")
+basset_df <- read_tsv("../output/basset_sampling_metrics.tsv")
 basset_df$type <- factor(basset_df$type)
 basset_df$fraction <- factor(basset_df$fraction)
 basset_df$type <- fct_relevel(basset_df$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))

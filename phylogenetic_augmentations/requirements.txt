@@ -1,8 +1,16 @@
+################################################################
+#
+# Run the following commands to setup the environment:
+#   conda create --name phylogenetic_augmentations python=3.8 cudatoolkit=11.2.2
+#   conda activate phylogenetic_augmentations
+#   pip install -r requirements.txt
+#
+################################################################
 numpy==1.23.1
 scipy==1.9.0
-matplotlib==
+matplotlib==3.5.1
 scikit-learn==1.1.2
 pandas==1.4.3
 h5py==3.7.0
-tensorflow==2.91
+tensorflow==2.9.1
 tensorflow-addons==0.19.0

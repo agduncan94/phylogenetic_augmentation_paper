@@ -32,7 +32,7 @@ data_summary <- function(data, varname, groupnames){
 # ====================================================================================================================
 
 # Load Drosophila data
-drosophila_pcc <- read_tsv("./drosophila/output_drosophila_sampling/model_correlation.tsv")
+drosophila_pcc <- read_tsv("../output/drosophila_sampling_metrics.tsv")
 
 # Clean up values for display
 drosophila_pcc$type <- factor(drosophila_pcc$type)
@@ -53,7 +53,7 @@ plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=fraction, y=pcc_test_De
   scale_color_manual(values=c('darkgrey', '#7393B3')) +
   xlab("Fraction of original training data") +
   ylab("Test set performance (PCC)") +
-  ggtitle('Developmental task') +
+  ggtitle('Developmental enhancer activity') +
   theme(legend.position="none",
         plot.title = element_text(hjust = 0.5, size=15),
         axis.title=element_text(size=13), axis.text = element_text(size = 13), legend.text = element_text(size=13),
@@ -70,7 +70,7 @@ plot_hk <- ggplot(drosophila_corr_summary_hk_df, aes(x=fraction, y=pcc_test_Hk, 
   scale_color_manual(values=c('darkgrey', '#7393B3')) +
   xlab("Fraction of original training data") +
   ylab("Test set performance (PCC)") +
-  ggtitle('Housekeeping task') +
+  ggtitle('Housekeeping enhancer activity') +
   theme(legend.position="right", plot.title = element_text(hjust = 0.5, size=15), axis.title=element_text(size=13),
         axis.text = element_text(size = 13), legend.title = element_text(size=13), legend.text = element_text(size=13),
         panel.border = element_rect(colour = "black", fill=NA, size=1), legend.background = element_rect(size=0.5, linetype="solid", colour="black", fill="white")) +
@@ -86,7 +86,7 @@ plot_a <- plot_grid(plot_dev, plot_hk, ncol=2)
 legend <- grobs[[which(sapply(grobs, function(x) x$name) == "guide-box")]]
 
 # Load Basset data
-basset_df <- read_tsv("./output_basset/model_metrics.tsv")
+basset_df <- read_tsv("../output/basset_sampling_metrics.tsv")
 basset_df$type <- factor(basset_df$type)
 basset_df$fraction <- factor(basset_df$fraction)
 basset_df$type <- fct_relevel(basset_df$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))

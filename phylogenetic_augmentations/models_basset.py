@@ -27,6 +27,7 @@ from matplotlib import pyplot as plt
 from matplotlib.offsetbox import AnchoredText
 from scipy import stats
 import os.path
+import gc
 import utils
 from ml_models import *
 
@@ -123,6 +124,7 @@ def data_gen(split_type, hdf5_file, y_file, num_samples, shuffle_epoch_end=True,
                         list(range(num_samples)), num_samples, replace=False)
                 else:
                     indices = list(range(num_samples))
+        gc.collect()
 
 
 # ====================================================================================================================
@@ -220,7 +222,10 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                       model_id, augmentation_type)
 
     # Clear the model from memory
+    del datagen_train
+    del datagen_val
     reset_keras(model)
+    gc.collect()
 
 
 def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices=None):
@@ -319,9 +324,13 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
     # Save plots for performance and loss
     plot_scatterplots(fine_tune_history, model_output_folder,
                       model_id, augmentation_ft_type)
-    
+
     # Clear the model from memory
+    del datagen_train
+    del datagen_val
     reset_keras(model)
+    gc.collect()
+
 
 # ====================================================================================================================
 # Plot model performance for basset
@@ -391,6 +400,7 @@ def plot_prediction_vs_actual(model, aug_file, activity_file, output_file_prefix
     plt.legend(loc="best")
     plt.title("precision vs. recall curve")
     plt.savefig(output_file_prefix + "_pr.png")
+    plt.clf()
 
     avg_precision = metrics.average_precision_score(Y.to_numpy(), Y_pred)
     print("SKLEARN AUPRC: " + str(avg_precision))

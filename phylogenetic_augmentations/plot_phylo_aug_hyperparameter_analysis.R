@@ -32,7 +32,7 @@ data_summary <- function(data, varname, groupnames){
 # ====================================================================================================================
 
 # Load Drosophila data
-drosophila_corr_df <- read_tsv("./drosophila/output_drosophila_num_species/model_correlation.tsv")
+drosophila_corr_df <- read_tsv("../output/drosophila_num_species_metrics.tsv")
 
 # Clean up values for display
 drosophila_corr_df$type <- factor(drosophila_corr_df$type)
@@ -40,8 +40,8 @@ drosophila_corr_df$type <- fct_relevel(drosophila_corr_df$type, c('none', 'finet
 drosophila_corr_df <- drosophila_corr_df %>% filter(type == 'homologs_finetune')
 drosophila_corr_df$type <- fct_recode(drosophila_corr_df$type, `Baseline` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
 
-#drosophila_corr_df <- drosophila_corr_df %>% separate('model', c('model', 'num_species'), sep='_')
-#drosophila_corr_df$num_species <- as.integer(drosophila_corr_df$num_species)
+drosophila_corr_df <- drosophila_corr_df %>% separate('model', c('model', 'species'), sep='_')
+drosophila_corr_df$species <- as.integer(drosophila_corr_df$species)
 
 
 # Create plot for Development task
@@ -90,22 +90,22 @@ legend <- grobs[[which(sapply(grobs, function(x) x$name) == "guide-box")]]
 plot_a <- plot_grid(plot, legend, nrow = 2, rel_heights = c(1, .1))
 
 # Plot homolog rate
-drosophila_pcc <- read_tsv("./output_drosophila_homolog_rate/model_correlation.tsv")
-drosophila_pcc$homolog_aug_type <- factor(drosophila_pcc$homolog_aug_type)
+drosophila_pcc <- read_tsv("../output/drosophila_phylo_aug_rate_metrics.tsv")
+drosophila_pcc$type <- factor(drosophila_pcc$type)
 drosophila_pcc$homolog_rate <- factor(drosophila_pcc$homolog_rate)
 drosophila_pcc$fraction <- factor(drosophila_pcc$fraction)
-drosophila_pcc$homolog_aug_type <- fct_relevel(drosophila_pcc$homolog_aug_type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
+drosophila_pcc$type <- fct_relevel(drosophila_pcc$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
 
-# Filter out homolog_aug_types not needed
-drosophila_pcc <- drosophila_pcc %>% filter(homolog_aug_type %in% c('homologs_finetune'))
-drosophila_pcc$homolog_aug_type <- fct_recode(drosophila_pcc$homolog_aug_type, `Baseline` = "none", `FT` = "finetune", `Phylo Aug` = "homologs", `Phylo Aug + FT` = "homologs_finetune")
+# Filter out types not needed
+drosophila_pcc <- drosophila_pcc %>% filter(type %in% c('homologs_finetune'))
+drosophila_pcc$type <- fct_recode(drosophila_pcc$type, `Baseline` = "none", `FT` = "finetune", `Phylo Aug` = "homologs", `Phylo Aug + FT` = "homologs_finetune")
 
 
 # Summarize developmental data and plot
 drosophila_corr_summary_dev_df <- data_summary(drosophila_pcc, varname="pcc_test_Dev", 
-                                               groupnames=c("homolog_aug_type", "homolog_rate"))
+                                               groupnames=c("type", "homolog_rate"))
 
-plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=homolog_rate, y=pcc_test_Dev, colour=homolog_aug_type, fill=homolog_aug_type)) +
+plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=homolog_rate, y=pcc_test_Dev, colour=type, fill=type)) +
   geom_point(data=drosophila_pcc, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = pcc_test_Dev-sd, ymax = pcc_test_Dev+sd), width=.4, position=position_dodge(.9), colour="black") +
   geom_hline(yintercept=0.6656, linetype="dashed", color = "red") +
@@ -113,7 +113,7 @@ plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=homolog_rate, y=pcc_tes
   scale_color_manual(values=c('#7393B3')) +
   xlab("Phylo aug rate") +
   ylab("Test set performance (PCC)") +
-  ggtitle('Developmental task') +
+  ggtitle('Developmental enhancer activity') +
   theme(legend.position="none",
         plot.title = element_text(hjust = 0.5, size=15),
         axis.title=element_text(size=13), axis.text = element_text(size = 13), legend.text = element_text(size=13),
@@ -121,8 +121,8 @@ plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=homolog_rate, y=pcc_tes
 
 # Summarize housekeeping data and plot
 drosophila_corr_summary_hk_df <- data_summary(drosophila_pcc, varname="pcc_test_Hk", 
-                                              groupnames=c("homolog_aug_type", "homolog_rate"))
-plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=homolog_rate, y=pcc_test_Hk, colour=homolog_aug_type, fill=homolog_aug_type)) +
+                                              groupnames=c("type", "homolog_rate"))
+plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=homolog_rate, y=pcc_test_Hk, colour=type, fill=type)) +
   geom_point(data=drosophila_pcc, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = pcc_test_Hk-sd, ymax = pcc_test_Hk+sd), width=.4, position=position_dodge(.9), colour="black") +
   geom_hline(yintercept=0.7487, linetype="dashed", color = "red") +
@@ -130,7 +130,7 @@ plot_b <- ggplot(drosophila_corr_summary_hk_df, aes(x=homolog_rate, y=pcc_test_H
   scale_color_manual(values=c('#7393B3')) +
   xlab("Phylo aug rate") +
   ylab("Test set performance (PCC)") +
-  ggtitle('Housekeeping task') +
+  ggtitle('Housekeeping enhancer activity') +
   theme(legend.position="bottom", plot.title = element_text(hjust = 0.5, size=15), axis.title=element_text(size=13),
         axis.text = element_text(size = 13), legend.title = element_text(size=13), legend.text = element_text(size=13),
         panel.border = element_rect(colour = "black", fill=NA, size=1)) +
