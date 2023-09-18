@@ -16,9 +16,9 @@ model_types = ['deepstarr', 'motif_deepstarr', 'explainn']
 num_replicates = 3
 sample_fraction = 1.0
 
-file_folder = "../analysis/process_data/basset/output/"
-homolog_folder = "../analysis/process_data/basset/output/orthologs/per_species_fa/"
-output_folder = "./output_basset/"
+file_folder = "../input/basset/"
+homolog_folder = "../input/basset/basset_homologs/"
+output_folder = "../output/basset_augmentation/"
 
 # ====================================================================================================================
 # Main code
