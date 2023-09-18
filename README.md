@@ -1,6 +1,8 @@
 # Phylogenetic augmentation paper analysis
 This repository has all the code necessary for reproducing the results from the phylogenetic augmentations paper.
 
+NOTE: Data and code are being uploaded over the next few days.
+
 # Start here
 To recreate the results from the analysis, start here.
 
