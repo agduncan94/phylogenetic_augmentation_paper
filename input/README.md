@@ -10,4 +10,8 @@ This includes the following files:
 
 ```
 bash download_input_data.sh
+
+mkdir drosophila
+
+mv Sequences_Train.txt Sequences_Val.txt Sequences_Test.txt ordered_drosophila_species.txt drosophila_homologs.zip drosophila/
 ```

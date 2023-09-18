@@ -27,20 +27,10 @@ conda activate phylogenetic_augmentations
 # Install libraries via pip
 pip install -r requirements.txt
 
-```
-
-## Optional: Run script on a small example set
-
-The following optional code will run phylogenetic augmentations on a small example set (10% of the drosophila data) to validate everything is installed and connected:
+# Install R and the R pacakges tidyverse and cowplot
 
 ```
-# Train a DeepSTARR model on test data
-python perform_drosophila_test.py
 
-# Create a figure
-Rscript --vanilla plot_drosophila_test.R
-
-```
 
 ## Perform model analysis (Figure 1)
 
@@ -52,6 +42,8 @@ python perform_drosophila_augmentation_analysis.py
 
 # Train the Basset CNN on the Basset data
 python perform_basset_augmentation_analysis.py
+
+# Rename and move model_metrics.tsv files to '../output/'
 
 # Create final figures
 Rscript --vanilla plot_phylo_aug_model_results.R
@@ -68,6 +60,8 @@ python perform_drosophila_sampling_analysis.py
 # Train models on sampled Basset data
 python perform_basset_sampling_analysis.py
 
+# Rename and move model_metrics.tsv files to '../output/'
+
 # Create final figures
 Rscript --vanilla plot_phylo_aug_sampling_analysis.R
 ```
@@ -82,6 +76,8 @@ python perform_drosophila_homolog_rate_analysis.py
 
 # Train models for number of species
 python perform_drosophila_num_species_analysis.py
+
+# Rename and move model_metrics.tsv files to '../output/'
 
 # Create final figures
 Rscript --vanilla plot_hyperparameter_analysis.R

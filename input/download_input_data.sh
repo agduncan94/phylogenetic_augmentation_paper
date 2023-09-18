@@ -6,4 +6,6 @@
 # Downloads the necessary input files for running the analysis from the paper
 # ####################################################################################################################
 
-# Download data from Zenodo
+# Download data from Zenodo (identifier)
+
+wget

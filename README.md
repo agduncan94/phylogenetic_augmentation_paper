@@ -5,7 +5,7 @@ This repository has all the code necessary for reproducing the results from the 
 To recreate the results from the analysis, start here.
 
 ## Download input data
-Download all of the Drosophila S2 data from Zenodo.
+Download all of the Drosophila S2 data from Zenodo. Basset data will be uploaded soon.
 
 See `./input/README.md`
 
