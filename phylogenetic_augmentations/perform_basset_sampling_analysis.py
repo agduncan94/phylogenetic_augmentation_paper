@@ -18,9 +18,9 @@ model_types = ['basset']
 num_replicates = 3
 fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 1.0]
 
-file_folder = "../analysis/process_data/basset/output/"
-homolog_folder = "../analysis/process_data/basset/output/orthologs/per_species_fa/"
-output_folder = "./output_basset_sampling_trial_3/"
+file_folder = "../input/basset/"
+homolog_folder = "../input/basset/basset_homologs/"
+output_folder = "../output/basset_sampling/"
 
 # ====================================================================================================================
 # Main code

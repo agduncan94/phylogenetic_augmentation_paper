@@ -1,13 +1,11 @@
 # Phylogenetic augmentation paper analysis
 This repository has all the code necessary for reproducing the results from the phylogenetic augmentations paper.
 
-Note: The code is under construction and will be complete in the next few weeks.
-
 # Start here
 To recreate the results from the analysis, start here.
 
 ## Download input data
-Download all of the Drosophila S2 and Basset data from Zenodo.
+Download all of the Drosophila S2 data from Zenodo.
 
 See `./input/README.md`
 

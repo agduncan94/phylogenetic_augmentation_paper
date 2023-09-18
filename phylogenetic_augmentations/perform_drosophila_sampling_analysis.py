@@ -16,9 +16,9 @@ model_types = ['deepstarr']
 num_replicates = 3
 fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
-file_folder = "../analysis/process_data/drosophila/output/"
-homolog_folder = "../analysis/process_data/drosophila/output/orthologs/"
-output_folder = "./output_drosophila_sampling/"
+file_folder = "../input/drosophila/"
+homolog_folder = "../input/drosophila/drosophila_homologs/"
+output_folder = "../output/drosophila_sampling/"
 
 # ====================================================================================================================
 # Main code

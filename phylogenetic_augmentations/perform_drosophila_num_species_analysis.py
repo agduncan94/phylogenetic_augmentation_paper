@@ -17,10 +17,10 @@ num_replicates = 3
 sample_fraction = 1.0
 num_species = 20
 
-file_folder = "../analysis/process_data/drosophila/output/"
-homolog_folder = "../analysis/process_data/drosophila/output/orthologs/"
-species_file = "../analysis/process_data/drosophila/output/ordered_drosophila_species.txt"
-output_folder = "./output_drosophila_num_species/"
+file_folder = "../input/drosophila/"
+homolog_folder = "../input/drosophila/drosophila_homologs/"
+species_file = "../input/drosophila/ordered_drosophila_species.txt"
+output_folder = "../output/drosophila_num_species/"
 
 # ====================================================================================================================
 # Main code
