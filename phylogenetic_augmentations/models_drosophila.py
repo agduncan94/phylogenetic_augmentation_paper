@@ -121,9 +121,9 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     """
 
     # Parameters for model training
-    epochs = 100
+    epochs = 2
     early_stop = 10
-    fine_tune_epochs = 5
+    fine_tune_epochs = 2
 
     # Create a unique identifier for the model
     model_id = model_type + "_rep" + \
@@ -134,9 +134,9 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     os.makedirs(model_output_folder, exist_ok=True)
 
     # Determine the number of sequences in the train/val/test sets (subtract 1 for header row)
-    train_file = file_folder + "Sequences_Train.txt"
-    val_file = file_folder + "Sequences_Val.txt"
-    test_file = file_folder + "Sequences_Test.txt"
+    train_file = file_folder + "Drosophila_Sequences_Train.txt"
+    val_file = file_folder + "Drosophila_Sequences_Val.txt"
+    test_file = file_folder + "Drosophila_Sequences_Test.txt"
 
     num_samples_train = utils.count_lines_in_file(
         train_file) - 1
@@ -187,29 +187,29 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Define augmentation type
     if use_homologs:
-        homolog_augmentation_type = 'homologs'
+        augmentation_type = 'homologs'
     else:
-        homolog_augmentation_type = 'none'
+        augmentation_type = 'none'
 
     # Save model
-    save_model(model_id + "_" + homolog_augmentation_type,
+    save_model(model_id + "_" + augmentation_type,
                model, history, model_output_folder)
 
     # Plot test performance on a scatterplot
     test_correlations = plot_prediction_vs_actual(model, test_file,
                                                   model_output_folder + 'Model_' + model_id + "_" +
-                                                  homolog_augmentation_type + "_Test",
+                                                  augmentation_type + "_Test",
                                                   num_samples_test,
                                                   homolog_folder,
                                                   False)
 
     # Write performance metrics to file
-    write_to_file(model_id, homolog_augmentation_type, model_type, replicate,
+    write_to_file(model_id, augmentation_type, model_type, replicate,
                   sample_fraction, history, test_correlations, phylo_aug_rate, species, output_folder)
 
     # Save plots for performance and loss
     plot_scatterplots(history, model_output_folder,
-                      model_id, homolog_augmentation_type)
+                      model_id, augmentation_type)
 
     # Perform fine-tuning on the original training only
     model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=1e-4, weight_decay=1e-6),
@@ -233,28 +233,28 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Save model
     if use_homologs:
-        homolog_augmentation_ft_type = 'homologs_finetune'
+        augmentation_ft_type = 'homologs_finetune'
     else:
-        homolog_augmentation_ft_type = 'finetune'
+        augmentation_ft_type = 'finetune'
 
-    save_model(model_id + "_" + homolog_augmentation_ft_type, model,
+    save_model(model_id + "_" + augmentation_ft_type, model,
                fine_tune_history, model_output_folder)
 
     # Plot test performance on a scatterplot
     test_correlations = plot_prediction_vs_actual(model, test_file,
                                                   model_output_folder + 'Model_' + model_id +
-                                                  "_" + homolog_augmentation_ft_type + "_Test",
+                                                  "_" + augmentation_ft_type + "_Test",
                                                   num_samples_test,
                                                   homolog_folder,
                                                   False)
 
     # Write performance metrics to file
-    write_to_file(model_id, homolog_augmentation_ft_type, model_type, replicate,
+    write_to_file(model_id, augmentation_ft_type, model_type, replicate,
                   sample_fraction, fine_tune_history, test_correlations, phylo_aug_rate, species, output_folder)
 
     # Save plots for performance and loss
     plot_scatterplots(fine_tune_history, model_output_folder,
-                      model_id, homolog_augmentation_ft_type)
+                      model_id, augmentation_ft_type)
 
     # Clean up
     clear_keras(model)
@@ -324,11 +324,10 @@ def plot_prediction_vs_actual(model, input_file, output_file_prefix, num_samples
 
     # Make plots for each task
     correlations = []
-
+    fig, ax = plt.subplots()
     for i, task in enumerate(TASKS):
         correlation_y = stats.pearsonr(Y[i], Y_pred[i].squeeze())[0]
 
-        fig, ax = plt.subplots()
         ax.scatter(Y[i], Y_pred[i].squeeze())
         ax.set_title(task + " Correlation")
         ax.set_xlabel('Measured')
@@ -338,7 +337,7 @@ def plot_prediction_vs_actual(model, input_file, output_file_prefix, num_samples
         at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
         ax.add_artist(at)
         plt.savefig(output_file_prefix + '_' + task + '_correlation.png')
-        plt.clf()
+        plt.cla()
         correlations.append(correlation_y)
 
     return correlations
@@ -348,6 +347,7 @@ def plot_scatterplot(history, a, b, x, y, title, filename):
     """
     Plots a scatterplot and saves to file
     """
+    fig, ax = plt.subplots()
     plt.plot(history.history[a])
     plt.plot(history.history[b])
     plt.title(title)
@@ -355,7 +355,7 @@ def plot_scatterplot(history, a, b, x, y, title, filename):
     plt.xlabel(y)
     plt.legend(['train', 'val'], loc='upper left')
     plt.savefig(filename)
-    plt.clf()
+    plt.cla()
 
 
 def plot_scatterplots(history, model_output_folder, model_id, name):
@@ -373,20 +373,20 @@ def plot_scatterplots(history, model_output_folder, model_id, name):
 # ====================================================================================================================
 
 
-def write_to_file(model_id, homolog_augmentation_type, model_type, replicate, sample_fraction, history, test_correlations, phylo_aug_rate, species, output_folder):
+def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fraction, history, test_correlations, phylo_aug_rate, species, output_folder):
     """
     Writes model performance to a file
     """
 
-    correlation_file_path = output_folder + 'model_correlation.tsv'
+    correlation_file_path = output_folder + 'model_metrics.tsv'
 
     if species is None:
         species = 'all'
 
     # Generate line to write to file
-    line = model_id + "\t" + homolog_augmentation_type + "\t" + model_type + \
+    line = model_id + "\t" + augmentation_type + "\t" + model_type + \
         "\t" + str(replicate) + "\t" + str(sample_fraction) + \
-        "\t" + str(phylo_aug_rate) + "\t" str(species) + '\t'
+        "\t" + str(phylo_aug_rate) + "\t" + str(species) + '\t'
 
     epochs_total = len(history.history['val_Dense_' + TASKS[0] + '_Pearson'])
     for i, task in enumerate(TASKS):
@@ -408,7 +408,7 @@ def write_to_file(model_id, homolog_augmentation_type, model_type, replicate, sa
         f.close()
     else:
         f = open(correlation_file_path, "w")
-        header_line = "name\thomolog_aug_type\tmodel\treplicate\tfraction\tphylo_aug_rate\tspecies\t"
+        header_line = "name\ttype\tmodel\treplicate\tfraction\tphylo_aug_rate\tspecies\t"
         for i, task in enumerate(TASKS):
             header_line += "pcc_train_" + task + "\t"
         for i, task in enumerate(TASKS):

@@ -18,8 +18,7 @@ model_types = ['basset']
 num_replicates = 3
 fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 1.0]
 
-file_folder = "../input/basset/"
-homolog_folder = "../input/basset/basset_homologs/"
+file_folder = "../basset/"
 output_folder = "../output/basset_sampling/"
 
 # ====================================================================================================================
@@ -29,10 +28,10 @@ output_folder = "../output/basset_sampling/"
 
 def train_model(use_homologs, model_type, replicate, fraction, filtered_indices):
     models.train_basset(use_homologs, fraction, replicate, file_folder,
-                        homolog_folder, output_folder, filtered_indices=filtered_indices)
+                        output_folder, filtered_indices=filtered_indices)
 
     models.fine_tune_basset(use_homologs, fraction, replicate, file_folder,
-                            homolog_folder, output_folder, filtered_indices=filtered_indices)
+                            output_folder, filtered_indices=filtered_indices)
 
 
 for model_type in model_types:

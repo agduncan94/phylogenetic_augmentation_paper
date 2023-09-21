@@ -16,8 +16,8 @@ model_types = ['deepstarr', 'motif_deepstarr', 'explainn']
 num_replicates = 3
 sample_fraction = 1.0
 
-file_folder = "../input/drosophila/"
-homolog_folder = "../input/drosophila/drosophila_homologs/"
+file_folder = "../input/"
+homolog_folder = "../input/drosophila_homologs/"
 output_folder = "../output/drosophila_augmentation/"
 
 # ====================================================================================================================

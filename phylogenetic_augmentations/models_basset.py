@@ -132,7 +132,7 @@ def data_gen(split_type, hdf5_file, y_file, num_samples, shuffle_epoch_end=True,
 # ====================================================================================================================
 
 
-def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices):
+def train(model, model_type, use_homologs, sample_fraction, replicate, file_folder, output_folder, filtered_indices):
     """
     Train a model
     """
@@ -151,11 +151,11 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
 
     # Determine the number of sequences in the train/val/test sets
     num_samples_train = utils.count_lines_in_file(
-        file_folder + "Sequences_Train.txt") - 1
+        file_folder + "Basset_Sequences_Train.txt") - 1
     num_samples_val = utils.count_lines_in_file(
-        file_folder + "Sequences_Val.txt") - 1
+        file_folder + "Basset_Sequences_Val.txt") - 1
     num_samples_test = utils.count_lines_in_file(
-        file_folder + "Sequences_Test.txt") - 1
+        file_folder + "Basset_Sequences_Test.txt") - 1
 
     # Print summary information about the model
     print('\n')
@@ -178,10 +178,10 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
         filtered_indices = None
 
     # Data generators for train and val sets used during initial training
-    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Train.txt",
+    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Basset_Sequences_Train.txt",
                              reduced_num_samples_train, use_homologs=use_homologs, filtered_indices=filtered_indices)
 
-    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Val.txt",
+    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Basset_Sequences_Val.txt",
                            num_samples_val)
 
     # Fit model using the data generators
@@ -212,7 +212,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     validation_auc_roc = history.history['val_auc_roc'][epochs-1]
 
     avg_auc, aucs, avg_precision, precisions, tf_aucroc, tf_auprc = plot_prediction_vs_actual(
-        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, homolog_folder, False)
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Basset_Sequences_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_type + "_Test", num_samples_test, False)
 
     write_to_file(model_id, augmentation_type, model_type, replicate,
                   sample_fraction, history, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, tf_aucroc, tf_auprc, output_folder)
@@ -228,7 +228,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     gc.collect()
 
 
-def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices=None):
+def train_basset(use_homologs, sample_fraction, replicate, file_folder, output_folder, filtered_indices=None):
     """
     Trains a Basset model on the Basset dataset
     """
@@ -236,10 +236,10 @@ def train_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_
     input_shape, encoder = BassetEncoder(SEQUENCE_LENGTH)
     model = basset_head(input_shape, encoder, TASKS)
     train(model, model_type, use_homologs, sample_fraction, replicate,
-          file_folder, homolog_folder, output_folder, filtered_indices)
+          file_folder, output_folder, filtered_indices)
 
 
-def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homolog_folder, output_folder, filtered_indices=None):
+def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, output_folder, filtered_indices=None):
     """
     Fine-tune a model
     """
@@ -258,11 +258,11 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
 
     # Determine the number of sequences in the train/val/test sets
     num_samples_train = utils.count_lines_in_file(
-        file_folder + "Sequences_Train.txt") - 1
+        file_folder + "Basset_Sequences_Train.txt") - 1
     num_samples_val = utils.count_lines_in_file(
-        file_folder + "Sequences_Val.txt") - 1
+        file_folder + "Basset_Sequences_Val.txt") - 1
     num_samples_test = utils.count_lines_in_file(
-        file_folder + "Sequences_Test.txt") - 1
+        file_folder + "Basset_Sequences_Test.txt") - 1
 
     # Sample a reduced set of sequences for training
     if int(sample_fraction) < 1:
@@ -289,10 +289,10 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
                   metrics=[tf.keras.metrics.AUC(curve='PR', name="auc_pr_ft"), tf.keras.metrics.AUC(name="auc_roc_ft")])
 
     # Update data generator to not use homologs (not needed for fine-tuning)
-    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Train.txt",
+    datagen_train = data_gen(TRAINING, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Basset_Sequences_Train.txt",
                              reduced_num_samples_train, use_homologs=False, filtered_indices=filtered_indices)
 
-    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Val.txt",
+    datagen_val = data_gen(VALIDATION, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Basset_Sequences_Val.txt",
                            num_samples_val)
 
     # Fit the model using new generator
@@ -316,7 +316,7 @@ def fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder, homo
     validation_auc_roc = fine_tune_history.history['val_auc_roc_ft'][epochs-1]
 
     avg_auc, aucs, avg_precision, precisions, tf_aucroc, tf_auprc = plot_prediction_vs_actual(
-        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Sequences_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, homolog_folder, False)
+        model, file_folder + "augmentation_data_homologs.hdf5", file_folder + "Basset_Sequences_Test.txt", model_output_folder + 'Model_' + model_id + "_" + augmentation_ft_type + "_Test", num_samples_test, False)
 
     write_to_file(model_id, augmentation_ft_type, model_type, replicate,
                   sample_fraction, fine_tune_history, auc_pr, validation_auc_pr, auc_roc, validation_auc_roc, aucs, avg_auc, precisions, avg_precision, tf_aucroc, tf_auprc, output_folder)
@@ -376,12 +376,13 @@ def plot_prediction_vs_actual(model, aug_file, activity_file, output_file_prefix
     print("SKLEARN AUCROC: " + str(avg_auc))
 
     # Precision recall using SciKit Learn
-    plt.clf()
+    plt.cla()
     precision = dict()
     recall = dict()
 
     precisions = []
 
+    fig, ax = plt.subplots()
     for i, task in enumerate(TASKS):
         precision[task], recall[task], _ = metrics.precision_recall_curve(Y.to_numpy()[:, i],
                                                                           Y_pred[:, i])
@@ -400,7 +401,7 @@ def plot_prediction_vs_actual(model, aug_file, activity_file, output_file_prefix
     plt.legend(loc="best")
     plt.title("precision vs. recall curve")
     plt.savefig(output_file_prefix + "_pr.png")
-    plt.clf()
+    plt.cla()
 
     avg_precision = metrics.average_precision_score(Y.to_numpy(), Y_pred)
     print("SKLEARN AUPRC: " + str(avg_precision))
@@ -419,6 +420,7 @@ def plot_prediction_vs_actual(model, aug_file, activity_file, output_file_prefix
 
 def plot_scatterplot(history, a, b, x, y, title, filename):
     """Plots a scatterplot and saves to file"""
+    fig, ax = plt.subplots()
     plt.plot(history.history[a])
     plt.plot(history.history[b])
     plt.title(title)
@@ -426,7 +428,7 @@ def plot_scatterplot(history, a, b, x, y, title, filename):
     plt.ylabel(y)
     plt.legend(['train', 'val'], loc='upper left')
     plt.savefig(filename)
-    plt.clf()
+    plt.cla()
 
 
 def plot_scatterplots(history, model_output_folder, model_id, name):

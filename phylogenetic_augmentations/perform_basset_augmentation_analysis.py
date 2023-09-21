@@ -7,17 +7,16 @@
 # ====================================================================================================================
 # Imports
 # ====================================================================================================================
-import models_drosophila as models
+import models_basset as models
 
 # ====================================================================================================================
 # Global settings and parameters
 # ====================================================================================================================
-model_types = ['deepstarr', 'motif_deepstarr', 'explainn']
+model_types = ['basset']
 num_replicates = 3
 sample_fraction = 1.0
 
-file_folder = "../input/basset/"
-homolog_folder = "../input/basset/basset_homologs/"
+file_folder = "../input/"
 output_folder = "../output/basset_augmentation/"
 
 # ====================================================================================================================
@@ -27,10 +26,10 @@ output_folder = "../output/basset_augmentation/"
 
 def train_model(use_homologs, model_type, replicate):
     models.train_basset(use_homologs, sample_fraction, replicate, file_folder,
-                        homolog_folder, output_folder)
+                        output_folder)
 
     models.fine_tune_basset(use_homologs, sample_fraction, replicate, file_folder,
-                            homolog_folder, output_folder)
+                            output_folder)
 
 
 for model_type in model_types:
