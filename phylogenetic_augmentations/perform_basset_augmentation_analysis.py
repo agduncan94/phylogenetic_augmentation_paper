@@ -13,7 +13,7 @@ import models_basset as models
 # Global settings and parameters
 # ====================================================================================================================
 model_types = ['basset']
-num_replicates = 1
+num_replicates = 3
 sample_fraction = 1.0
 
 file_folder = "../input/"

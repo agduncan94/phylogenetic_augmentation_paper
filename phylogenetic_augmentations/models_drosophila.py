@@ -121,9 +121,9 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     """
 
     # Parameters for model training
-    epochs = 2
+    epochs = 100
     early_stop = 10
-    fine_tune_epochs = 2
+    fine_tune_epochs = 5
 
     # Create a unique identifier for the model
     model_id = model_type + "_rep" + \
