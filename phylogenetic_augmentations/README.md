@@ -17,6 +17,8 @@ See `../input/README.md` for instructions.
 ## Initialize the conda environment
 Loading from the conda file should create the same environment that was used to run the initial analysis. The analysis requires access to a GPU.
 
+Requires R and Conda.
+
 ```
 # Load the conda environment from file
 conda create --name phylogenetic_augmentations python=3.8 cudatoolkit=11.2.2
@@ -27,7 +29,9 @@ conda activate phylogenetic_augmentations
 # Install libraries via pip
 pip install -r requirements.txt
 
-# Install R and the R pacakges tidyverse and cowplot
+# Install the R pacakges:
+# * tidyverse
+# * cowplot
 
 ```
 
@@ -43,7 +47,9 @@ python perform_drosophila_augmentation_analysis.py
 # Train the Basset CNN on the Basset data
 python perform_basset_augmentation_analysis.py
 
-# Rename and move model_metrics.tsv files to '../output/'
+# Rename and copy model_metrics.tsv files to '../output/'
+cp ../output/drosophila_augmentation/model_metrics.tsv ../output/drosophila_augmentation_metrics.tsv
+cp ../output/basset_augmentation/model_metrics.tsv ../output/basset_augmentation_metrics.tsv
 
 # Create final figures
 Rscript --vanilla plot_phylo_aug_model_results.R
@@ -60,7 +66,9 @@ python perform_drosophila_sampling_analysis.py
 # Train models on sampled Basset data
 python perform_basset_sampling_analysis.py
 
-# Rename and move model_metrics.tsv files to '../output/'
+# Rename and copy model_metrics.tsv files to '../output/'
+cp ../output/drosophila_sampling/model_metrics.tsv ../output/drosophila_sampling_metrics.tsv
+cp ../output/basset_sampling/model_metrics.tsv ../output/basset_sampling_metrics.tsv
 
 # Create final figures
 Rscript --vanilla plot_phylo_aug_sampling_analysis.R
@@ -77,7 +85,9 @@ python perform_drosophila_homolog_rate_analysis.py
 # Train models for number of species
 python perform_drosophila_num_species_analysis.py
 
-# Rename and move model_metrics.tsv files to '../output/'
+# Rename and copy model_metrics.tsv files to '../output/'
+cp ../output/drosophila_phylo_aug_rate/model_metrics.tsv ../output/drosophila_phylo_aug_rate_metrics.tsv
+cp ../output/drosophila_num_species/model_metrics.tsv ../output/drosophila_num_species_metrics.tsv
 
 # Create final figures
 Rscript --vanilla plot_hyperparameter_analysis.R

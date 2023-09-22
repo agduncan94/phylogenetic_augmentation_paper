@@ -17,9 +17,9 @@ num_replicates = 3
 homolog_rates = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 sample_fraction = 1.0
 
-file_folder = "../input/drosophila/"
-homolog_folder = "../input/drosophila/drosophila_homologs/"
-output_folder = "../output/drosophila_homolog_rate/"
+file_folder = "../input/"
+homolog_folder = "../input/orthologs/"
+output_folder = "../output/drosophila_phylo_aug_rate/"
 
 # ====================================================================================================================
 # Main code

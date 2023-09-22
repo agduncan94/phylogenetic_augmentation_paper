@@ -17,9 +17,9 @@ num_replicates = 3
 sample_fraction = 1.0
 num_species = 20
 
-file_folder = "../input/drosophila/"
-homolog_folder = "../input/drosophila/drosophila_homologs/"
-species_file = "../input/drosophila/ordered_drosophila_species.txt"
+file_folder = "../input/"
+homolog_folder = "../input/orthologs/"
+species_file = "../input/ordered_drosophila_species.txt"
 output_folder = "../output/drosophila_num_species/"
 
 # ====================================================================================================================

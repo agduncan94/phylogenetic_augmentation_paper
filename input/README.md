@@ -1,6 +1,6 @@
 # Download the input data
 
-Run the following to download the input data from Zenodo.
+Run the following to download the input data from the Zenodo item https://zenodo.org/record/8356747.
 
 This includes the following files:
 * Drosophila S2 training, validation, and testing files
@@ -10,8 +10,4 @@ This includes the following files:
 
 ```
 bash download_input_data.sh
-
-mkdir drosophila
-
-mv Sequences_Train.txt Sequences_Val.txt Sequences_Test.txt ordered_drosophila_species.txt drosophila_homologs.zip drosophila/
 ```

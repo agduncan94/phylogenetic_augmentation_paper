@@ -17,7 +17,7 @@ num_replicates = 3
 sample_fraction = 1.0
 
 file_folder = "../input/"
-homolog_folder = "../input/drosophila_homologs/"
+homolog_folder = "../input/orthologs/"
 output_folder = "../output/drosophila_augmentation/"
 
 # ====================================================================================================================
