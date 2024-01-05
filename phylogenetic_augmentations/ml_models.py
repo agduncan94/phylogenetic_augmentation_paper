@@ -13,13 +13,7 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 import tensorflow_addons as tfa
-import keras
-import keras.layers as kl
-from keras.layers.convolutional import MaxPooling1D
-from keras.layers.core import Dropout, Activation, Flatten
-from keras.layers import BatchNormalization
-from keras.callbacks import EarlyStopping, History
-from keras import backend as K
+import tensorflow.keras.backend as K
 import math
 import pickle
 import os
@@ -93,33 +87,33 @@ def DeepSTARREncoder(sequence_size):
     }
 
     # Input shape
-    input_shape = kl.Input(shape=(sequence_size, len(ALPHABET)))
+    input_shape = tf.keras.layers.Input(shape=(sequence_size, len(ALPHABET)))
 
     # Define encoder to create embedding vector
-    x = kl.Conv1D(params['num_filters'], kernel_size=params['kernel_size1'],
+    x = tf.keras.layers.Conv1D(params['num_filters'], kernel_size=params['kernel_size1'],
                   padding=params['pad'],
                   name='Conv1D_1st')(input_shape)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = MaxPooling1D(2)(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
+    x = tf.keras.layers.MaxPooling1D(2)(x)
 
     for i in range(1, params['n_conv_layer']):
-        x = kl.Conv1D(params['num_filters'+str(i+1)],
+        x = tf.keras.layers.Conv1D(params['num_filters'+str(i+1)],
                       kernel_size=params['kernel_size'+str(i+1)],
                       padding=params['pad'],
                       name=str('Conv1D_'+str(i+1)))(x)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-        x = MaxPooling1D(2)(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.Activation('relu')(x)
+        x = tf.keras.layers.MaxPooling1D(2)(x)
 
-    x = Flatten()(x)
+    x = tf.keras.layers.Flatten()(x)
 
     for i in range(0, params['n_add_layer']):
-        x = kl.Dense(params['dense_neurons'+str(i+1)],
+        x = tf.keras.layers.Dense(params['dense_neurons'+str(i+1)],
                      name=str('Dense_'+str(i+1)))(x)
-        x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-        x = Dropout(params['dropout_prob'])(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.Activation('relu')(x)
+        x = tf.keras.layers.Dropout(params['dropout_prob'])(x)
     encoder = x
 
     return input_shape, encoder
@@ -141,37 +135,37 @@ def ExplaiNNEncoder(sequence_size):
     }
 
     # Input shape
-    input_shape = kl.Input(shape=(sequence_size, len(ALPHABET)))
+    input_shape = tf.keras.layers.Input(shape=(sequence_size, len(ALPHABET)))
 
     # Each CNN unit represents a motif
     encoder = []
 
     for i in range(params['num_of_motifs']):
         # 1st convolutional layer
-        cnn_x = kl.Conv1D(1, kernel_size=params['conv1_kernel_size'], padding='same', name=str(
+        cnn_x = tf.keras.layers.Conv1D(1, kernel_size=params['conv1_kernel_size'], padding='same', name=str(
             'cnn_' + str(i)))(input_shape)
-        cnn_x = BatchNormalization()(cnn_x)
-        cnn_x = Activation('exponential')(cnn_x)
-        cnn_x = MaxPooling1D(pool_size=7, strides=7)(cnn_x)
-        cnn_x = Flatten()(cnn_x)
+        cnn_x = tf.keras.layers.BatchNormalization()(cnn_x)
+        cnn_x = tf.keras.layers.Activation('exponential')(cnn_x)
+        cnn_x = tf.keras.layers.MaxPooling1D(pool_size=7, strides=7)(cnn_x)
+        cnn_x = tf.keras.layers.Flatten()(cnn_x)
 
         # 1st FC layer
-        cnn_x = kl.Dense(params['fc_1_size'], name=str(
+        cnn_x = tf.keras.layers.Dense(params['fc_1_size'], name=str(
             'FC_' + str(i) + '_a'))(cnn_x)
-        cnn_x = BatchNormalization()(cnn_x)
-        cnn_x = Activation('relu')(cnn_x)
-        cnn_x = Dropout(params['dropout'])(cnn_x)
+        cnn_x = tf.keras.layers.BatchNormalization()(cnn_x)
+        cnn_x = tf.keras.layers.Activation('relu')(cnn_x)
+        cnn_x = tf.keras.layers.Dropout(params['dropout'])(cnn_x)
 
         # 2nd FC layer
-        cnn_x = kl.Dense(params['fc_2_size'], name=str(
+        cnn_x = tf.keras.layers.Dense(params['fc_2_size'], name=str(
             'FC_' + str(i) + '_b'))(cnn_x)
-        cnn_x = BatchNormalization()(cnn_x)
-        cnn_x = Activation('relu')(cnn_x)
-        cnn_x = Flatten()(cnn_x)
+        cnn_x = tf.keras.layers.BatchNormalization()(cnn_x)
+        cnn_x = tf.keras.layers.Activation('relu')(cnn_x)
+        cnn_x = tf.keras.layers.Flatten()(cnn_x)
 
         encoder.append(cnn_x)
 
-    encoder = kl.concatenate(encoder)
+    encoder = tf.keras.layers.concatenate(encoder)
 
     return input_shape, encoder
 
@@ -192,31 +186,71 @@ def MotifDeepSTARREncoder(sequence_size):
     }
 
     # Input shape
-    input_shape = kl.Input(shape=(sequence_size, len(ALPHABET)))
+    input_shape = tf.keras.layers.Input(shape=(sequence_size, len(ALPHABET)))
 
     # Define encoder to create embedding vector
-    encoder = kl.Conv1D(params['conv1_shape'], kernel_size=params['conv1_kernel_size'],
+    encoder = tf.keras.layers.Conv1D(params['conv1_shape'], kernel_size=params['conv1_kernel_size'],
                         padding=params['padding'],
                         name='Conv1D')(input_shape)
-    encoder = BatchNormalization()(encoder)
-    encoder = Activation('exponential')(encoder)
-    encoder = MaxPooling1D(params['conv1_pool_size'])(encoder)
-    encoder = Flatten()(encoder)
+    encoder = tf.keras.layers.BatchNormalization()(encoder)
+    encoder = tf.keras.layers.Activation('exponential')(encoder)
+    encoder = tf.keras.layers.MaxPooling1D(params['conv1_pool_size'])(encoder)
+    encoder = tf.keras.layers.Flatten()(encoder)
 
     # First dense layer
-    encoder = kl.Dense(params['dense_shape'], name='Dense_a')(encoder)
-    encoder = BatchNormalization()(encoder)
-    encoder = Activation('relu')(encoder)
-    encoder = Dropout(params['dropout'])(encoder)
+    encoder = tf.keras.layers.Dense(params['dense_shape'], name='Dense_a')(encoder)
+    encoder = tf.keras.layers.BatchNormalization()(encoder)
+    encoder = tf.keras.layers.Activation('relu')(encoder)
+    encoder = tf.keras.layers.Dropout(params['dropout'])(encoder)
 
     # Second dense layer
-    encoder = kl.Dense(params['dense_shape'], name='Dense_b')(encoder)
-    encoder = BatchNormalization()(encoder)
-    encoder = Activation('relu')(encoder)
-    encoder = Dropout(params['dropout'])(encoder)
+    encoder = tf.keras.layers.Dense(params['dense_shape'], name='Dense_b')(encoder)
+    encoder = tf.keras.layers.BatchNormalization()(encoder)
+    encoder = tf.keras.layers.Activation('relu')(encoder)
+    encoder = tf.keras.layers.Dropout(params['dropout'])(encoder)
 
     return input_shape, encoder
 
+def SimplifiedMotifDeepSTARREncoder(sequence_size):
+    """
+    Encoder for a model like DeepSTARR, but with an interpretable motif layer. Simplified version for smaller datasets
+    """
+
+    # Define parameters for the encoder
+    params = {
+        'padding': 'same',
+        'conv1_kernel_size': 15,
+        'conv1_shape': 64,
+        'conv1_pool_size': 24,
+        'dense_shape': 64,
+        'dropout': 0.4
+    }
+
+    # Input shape
+    input_shape = tf.keras.layers.Input(shape=(sequence_size, len(ALPHABET)))
+
+    # Define encoder to create embedding vector
+    encoder = tf.keras.layers.Conv1D(params['conv1_shape'], kernel_size=params['conv1_kernel_size'],
+                        padding=params['padding'],
+                        name='Conv1D')(input_shape)
+    encoder = tf.keras.layers.BatchNormalization()(encoder)
+    encoder = tf.keras.layers.Activation('exponential')(encoder)
+    encoder = tf.keras.layers.MaxPooling1D(params['conv1_pool_size'])(encoder)
+    encoder = tf.keras.layers.Flatten()(encoder)
+
+    # First dense layer
+    encoder = tf.keras.layers.Dense(params['dense_shape'], name='Dense_a')(encoder)
+    encoder = tf.keras.layers.BatchNormalization()(encoder)
+    encoder = tf.keras.layers.Activation('relu')(encoder)
+    encoder = tf.keras.layers.Dropout(params['dropout'])(encoder)
+
+    # Second dense layer
+    encoder = tf.keras.layers.Dense(params['dense_shape'], name='Dense_b')(encoder)
+    encoder = tf.keras.layers.BatchNormalization()(encoder)
+    encoder = tf.keras.layers.Activation('relu')(encoder)
+    encoder = tf.keras.layers.Dropout(params['dropout'])(encoder)
+
+    return input_shape, encoder
 
 def BassetEncoder(sequence_size):
     """
@@ -242,47 +276,47 @@ def BassetEncoder(sequence_size):
     }
 
     # Input shape
-    input_shape = kl.Input(shape=(sequence_size, len(ALPHABET)))
+    input_shape = tf.keras.layers.Input(shape=(sequence_size, len(ALPHABET)))
 
     # First conv layer
-    x = kl.Conv1D(params['num_filters1'], kernel_size=params['kernel_size1'],
+    x = tf.keras.layers.Conv1D(params['num_filters1'], kernel_size=params['kernel_size1'],
                   padding=params['pad'],
                   name='Conv1D_1')(input_shape)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = MaxPooling1D(params['max_pool1'])(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
+    x = tf.keras.layers.MaxPooling1D(params['max_pool1'])(x)
 
     # Second conv layer
-    x = kl.Conv1D(params['num_filters2'], kernel_size=params['kernel_size2'],
+    x = tf.keras.layers.Conv1D(params['num_filters2'], kernel_size=params['kernel_size2'],
                   padding=params['pad'],
                   name='Conv1D_2')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = MaxPooling1D(params['max_pool2'])(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
+    x = tf.keras.layers.MaxPooling1D(params['max_pool2'])(x)
 
     # Third conv layer
-    x = kl.Conv1D(params['num_filters3'], kernel_size=params['kernel_size3'],
+    x = tf.keras.layers.Conv1D(params['num_filters3'], kernel_size=params['kernel_size3'],
                   padding=params['pad'],
                   name='Conv1D_3')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = MaxPooling1D(params['max_pool3'])(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
+    x = tf.keras.layers.MaxPooling1D(params['max_pool3'])(x)
 
-    x = Flatten()(x)
+    x = tf.keras.layers.Flatten()(x)
 
     # First linear layer
-    x = kl.Dense(params['dense_neurons1'],
+    x = tf.keras.layers.Dense(params['dense_neurons1'],
                  name=str('Dense_1'))(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = Dropout(params['dropout_prob'])(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
+    x = tf.keras.layers.Dropout(params['dropout_prob'])(x)
 
     # Second linear layer
-    x = kl.Dense(params['dense_neurons2'],
+    x = tf.keras.layers.Dense(params['dense_neurons2'],
                  name=str('Dense_2'))(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = Dropout(params['dropout_prob'])(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
+    x = tf.keras.layers.Dropout(params['dropout_prob'])(x)
 
     encoder = x
 
@@ -302,15 +336,34 @@ def n_regression_head(input_shape, encoder, tasks):
     # Create prediction head per task
     outputs = []
     for task in tasks:
-        outputs.append(kl.Dense(1, activation='linear',
+        outputs.append(tf.keras.layers.Dense(1, activation='linear',
                        name=str('Dense_' + task))(encoder))
 
     # Compile the model
-    model = keras.models.Model([input_shape], outputs)
-    model.compile(keras.optimizers.Adam(learning_rate=lr),
+    model = tf.keras.models.Model([input_shape], outputs)
+    model.compile(tf.keras.optimizers.Adam(learning_rate=lr),
                   loss=['mse'] * len(tasks),
                   loss_weights=[1] * len(tasks),
                   metrics=[Pearson])
+
+    return model
+
+def n_classification_head(input_shape, encoder, tasks):
+    """
+    Classification head that supports an arbitrary number of labels
+    """
+    lr = 0.002
+
+    # Create prediction head per task
+    outputs = []
+    outputs.append(tf.keras.layers.Dense(len(tasks), activation='sigmoid',
+                                         name=str('Dense_classification'))(encoder))
+
+    # Compile the model
+    model = tf.keras.models.Model([input_shape], outputs)
+    model.compile(tf.keras.optimizers.Adam(learning_rate=lr),
+                  loss=tf.keras.losses.BinaryCrossentropy(),
+                  metrics=['Accuracy', tf.keras.metrics.AUC(multi_label=True, curve="PR", num_labels=len(tasks))])
 
     return model
 
@@ -322,12 +375,12 @@ def basset_head(input_shape, encoder, tasks):
     lr = 0.002
 
     # Create prediction head per task
-    output = kl.Dense(
+    output = tf.keras.layers.Dense(
         len(tasks), activation='sigmoid', name=str('Dense_binary'))(encoder)
 
     # Compile the model
-    model = keras.models.Model([input_shape], output)
-    model.compile(keras.optimizers.Adam(learning_rate=lr),
+    model = tf.keras.models.Model([input_shape], output)
+    model.compile(tf.keras.optimizers.Adam(learning_rate=lr),
                   loss=['binary_crossentropy'],
                   metrics=[tf.keras.metrics.AUC(curve='PR', name="auc_pr"), tf.keras.metrics.AUC(name="auc_roc")])
 
@@ -361,7 +414,7 @@ def clear_keras(model):
     Clear Keras variables to allow multiple models to be trained in one script
     """
     del(model)
-    keras.backend.clear_session()
+    tf.keras.backend.clear_session()
 
 
 def save_model(model_name, model, history, model_output_folder):

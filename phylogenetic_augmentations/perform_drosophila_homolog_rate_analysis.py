@@ -29,13 +29,13 @@ output_folder = "../output/drosophila_phylo_aug_rate/"
 def train_model(use_homologs, model_type, replicate, homolog_rate):
     if model_type == "deepstarr":
         models.train_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                               homolog_folder, output_folder, homolog_rate=homolog_rate)
+                               homolog_folder, output_folder, phylo_aug_rate=homolog_rate)
     elif model_type == "explainn":
         models.train_explainn(use_homologs, sample_fraction, replicate, file_folder,
-                              homolog_folder, output_folder, homolog_rate=homolog_rate)
+                              homolog_folder, output_folder, phylo_aug_rate=homolog_rate)
     elif model_type == "motif_deepstarr":
         models.train_motif_deepstarr(use_homologs, sample_fraction, replicate, file_folder,
-                                     homolog_folder, output_folder, homolog_rate=homolog_rate)
+                                     homolog_folder, output_folder, phylo_aug_rate=homolog_rate)
 
 
 # Train models with increasing homolog rates

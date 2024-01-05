@@ -13,13 +13,9 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 import keras
 import keras.layers as kl
-from keras.layers.convolutional import MaxPooling1D
-from keras.layers.core import Dropout, Activation, Flatten
-from keras.layers import BatchNormalization
 from keras.callbacks import EarlyStopping, History
 from keras import backend as K
 import math
-import pickle
 import os
 from matplotlib import pyplot as plt
 from matplotlib.offsetbox import AnchoredText
@@ -51,7 +47,7 @@ def get_batch(homolog_obj, data, indices, use_homologs=False, phylo_aug_rate=1.0
 
     # One-hot encode a batch of sequences
     X_batch = homolog_obj.one_hot_encode_batch(
-        indices, SEQUENCE_LENGTH, use_homologs, phylo_aug_rate)
+        indices, SEQUENCE_LENGTH, use_homologs, phylo_aug_rate, True)
 
     # Retrieve batch of measurements
     Y = []
@@ -160,7 +156,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
         print('Use phylogenetic augmentations: False')
 
     if species is not None:
-        print('Species: ' + species)
+        print('Species: ' + str(len(species)))
     print('\n')
 
     # Sample a fraction of the original training data (if specified)
@@ -340,6 +336,7 @@ def plot_prediction_vs_actual(model, input_file, output_file_prefix, num_samples
         plt.cla()
         correlations.append(correlation_y)
 
+    plt.close()
     return correlations
 
 
@@ -356,6 +353,7 @@ def plot_scatterplot(history, a, b, x, y, title, filename):
     plt.legend(['train', 'val'], loc='upper left')
     plt.savefig(filename)
     plt.cla()
+    plt.close()
 
 
 def plot_scatterplots(history, model_output_folder, model_id, name):
@@ -381,7 +379,9 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fra
     correlation_file_path = output_folder + 'model_metrics.tsv'
 
     if species is None:
-        species = 'all'
+        species = 0
+    else:
+        species = len(species)
 
     # Generate line to write to file
     line = model_id + "\t" + augmentation_type + "\t" + model_type + \

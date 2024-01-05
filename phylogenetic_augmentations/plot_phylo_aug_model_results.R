@@ -37,7 +37,7 @@ drosophila_corr_df <- read_tsv("../output/drosophila_augmentation_metrics.tsv")
 # Clean up values for display
 drosophila_corr_df$type <- factor(drosophila_corr_df$type)
 drosophila_corr_df$type <- fct_relevel(drosophila_corr_df$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
-drosophila_corr_df$type <- fct_recode(drosophila_corr_df$type, `Baseline` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
+drosophila_corr_df$type <- fct_recode(drosophila_corr_df$type, `Baseline` = "none", `Phylogenetic Augmentation + Fine-tuning` = "homologs_finetune", `Fine-tuning` = "finetune", `Phylogenetic Augmentation` = "homologs")
 drosophila_corr_df$model <- factor(drosophila_corr_df$model)
 drosophila_corr_df$model <- fct_relevel(drosophila_corr_df$model, c('deepstarr', 'explainn', 'motif_deepstarr'))
 drosophila_corr_df$model <- fct_recode(drosophila_corr_df$model, `DeepSTARR` = "deepstarr", `ExplaiNN` = "explainn", `Motif DeepSTARR` = "motif_deepstarr")
@@ -54,9 +54,9 @@ plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_test_Dev, 
   ylab("Test set performance (PCC)") +
   ggtitle('Developmental enhancer activity') +
   theme(legend.position="none",
-        plot.title = element_text(hjust = 0.5),
-        axis.title=element_text(size=14), axis.text = element_text(size=12), legend.title = element_text(size=13),
-        legend.text = element_text(size=13), panel.border = element_rect(colour = "black", fill=NA, size=1))
+        plot.title = element_text(hjust = 0.5, size=11),
+        axis.title=element_text(size=11), axis.text = element_text(size=10), legend.title = element_text(size=11),
+        legend.text = element_text(size=11), panel.border = element_rect(colour = "black", fill=NA, size=1))
 
 drosophila_corr_summary_hk_df <- data_summary(drosophila_corr_df, varname="pcc_test_Hk", 
                                               groupnames=c("model", "type"))
@@ -68,9 +68,9 @@ plot_hk <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_test_Hk, col
   xlab("") +
   ylab("Test set performance (PCC)") +
   ggtitle('Housekeeping enhancer activity') +
-  theme(legend.position="right", plot.title = element_text(hjust = 0.5),
-        axis.title=element_text(size=14), axis.text = element_text(size=12), legend.title = element_text(size=12),
-        legend.text = element_text(size=11), panel.border = element_rect(colour = "black", fill=NA, size=1),
+  theme(legend.position="right", plot.title = element_text(hjust = 0.5, size=11),
+        axis.title=element_text(size=11), axis.text = element_text(size=10), legend.title = element_text(size=11),
+        legend.text = element_text(size=10), panel.border = element_rect(colour = "black", fill=NA, size=1),
         legend.background = element_rect(size=0.5, linetype="solid", colour="black", fill="white")) +
   guides(colour=guide_legend(title="Type"), fill='none')
 
@@ -88,7 +88,7 @@ basset_df <- read_tsv("../output/basset_sampling_metrics.tsv")
 basset_df$type <- factor(basset_df$type)
 basset_df$fraction <- factor(basset_df$fraction)
 basset_df$type <- fct_relevel(basset_df$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
-basset_df$type <- fct_recode(basset_df$type, `Baseline` = "none", `Phylo Aug + FT` = "homologs_finetune", `FT` = "finetune", `Phylo Aug` = "homologs")
+basset_df$type <- fct_recode(basset_df$type, `Baseline` = "none", `Phylogenetic Augmentation + Fine-tuning` = "homologs_finetune", `Fine-tuning` = "finetune", `Phylogenetic Augmentation` = "homologs")
 basset_df$model <- fct_recode(basset_df$model, `Basset` = "basset")
 basset_df <- basset_df %>% filter(fraction == 1.0)
 
@@ -103,14 +103,14 @@ plot_basset <- ggplot(basset_summary_df, aes(x=model, y=mean_test_pr, colour=typ
   scale_color_manual(values=c('darkgrey', '#E69F00', '#7fc97f','#7393B3')) +
   xlab('') +
   ylab("Test set performance (Avg AUPRC)") +
-  ggtitle('Basset') +
-  theme(legend.position="none", plot.title = element_text(hjust = 0.5, size=15),
-        axis.title=element_text(size=13), axis.text = element_text(size = 13), legend.text = element_text(size=13),
+  ggtitle('Basset ') +
+  theme(legend.position="none", plot.title = element_text(hjust = 0.5, size=11),
+        axis.title=element_text(size=11), axis.text = element_text(size = 10), legend.text = element_text(size=11),
         panel.border = element_rect(colour = "black", fill=NA, size=1))
 
 plot_b <- plot_grid(plot_basset, legend, ncol=2)
 figure <- plot_grid(plot_a, plot_b, ncol=1, labels=c('A', 'B'), rel_heights = c(1, 1,  .1))
-
+figure
 # Save a high quality and low quality image
-ggsave("../figures/phylo_aug_figure_2.tiff", figure, units="in", width=4, height=4, device='tiff', dpi=350)
-ggsave("../figures/phylo_aug_figure_2.jpg", figure, units="in", width=4, height=4)
+ggsave("../figures/phylo_aug_figure_2.tiff", figure, units="in", width=7, height=7, device='tiff', dpi=350)
+ggsave("../figures/phylo_aug_figure_2.jpg", figure, units="in", width=8, height=7)

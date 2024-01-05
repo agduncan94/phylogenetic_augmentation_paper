@@ -62,7 +62,7 @@ class homolog_fastas:
                 if 'N' not in seq and split_name in self.fasta_dict:
                     self.fasta_dict[split_name].append(seq)
 
-    def one_hot_encode_batch(self, indices, standardize=None, use_homologs=False, homolog_rate=1.0):
+    def one_hot_encode_batch(self, indices, standardize=None, use_homologs=False, homolog_rate=1.0, rev_comp=True):
         """One hot encode a batch of sequences"""
         seqs = []
 
@@ -78,11 +78,13 @@ class homolog_fastas:
                     # Sample from homologs
                     seq_id = np.random.randint(0, len(homologs))
                 seq = homologs[seq_id]
-                seq = self.rev_comp_augmentation(seq)
+                if rev_comp:
+                    seq = self.rev_comp_augmentation(seq)
                 seqs.append(seq)
             else:
                 seq = homologs[0]
-                seq = self.rev_comp_augmentation(seq)
+                if rev_comp:
+                    seq = self.rev_comp_augmentation(seq)
                 seqs.append(seq)
 
         # One hot encode the sequences in the batch
