@@ -27,7 +27,7 @@ motif_db_path = "./puf3_motif.txt"
 background_sequence_path = output_folder + "fastas/background.sequence.fa"
 fasta_path = output_folder + "fastas/"
 image_path = output_folder + "figures/"
-model_path_prefix = "../output/yeast_augmentation_deepstarr/DeepSTARR_rep2_frac1.0/Model_DeepSTARR_rep2_frac1.0_homologs_finetune"
+model_path_prefix = "../output/yeast_augmentation_deepstarr/DeepSTARR_rep1_frac1.0/Model_DeepSTARR_rep1_frac1.0_none"
 num_sequences_per_motif = 1000
 alphabet = "ACGT"
 
@@ -129,22 +129,24 @@ def plot_motif_activity(motif_id, motif_name, consensus, Y_pred_motifs, Y_pred_s
     """Plot the predicted activity for the three sets of sequences"""
     combined_pred_col = np.array(
         [Y_pred_motifs.flatten(), Y_pred_scrambled.flatten(), Y_pred_background.flatten()]).flatten()
-    combined_type_col = np.array([['PUF3'] * num_sequences_per_motif, ['Control']
+    combined_type_col = np.array([[motif_name.upper()] * num_sequences_per_motif, ['Control']
                                  * num_sequences_per_motif, ['Background'] * num_sequences_per_motif]).flatten()
     activity_df = pd.DataFrame(
         {'Y_pred': combined_pred_col, 'Type': combined_type_col})
 
-    my_pal = {"PUF3": "#b2df8a",
+    my_pal = {motif_name.upper(): "#b2df8a",
               "Control": "#1f78b4", "Background": "#a6cee3"}
     ax = sns.boxplot(x='Type', y='Y_pred', data=activity_df, palette=my_pal)
     ax.set_title(motif_name)
     ax.set_xlabel('Type')
-    ax.set_ylabel('Predicted PUF3 binding')
+    ax.set_ylabel('Predicted ' + motif_name.upper() + ' binding')
     ax.set_ylim([0, 1])
     plt.savefig(image_path + '/' + motif_id + "_" +
                 motif_name.replace('::', '-') + ".png", format='png')
     plt.clf()
 
+    activity_df.to_csv(output_folder + '/' +
+              motif_name.upper() + '_predicted_binding_baseline.tsv', sep='\t', index=False)
 
 def insert_tfbs_into_sequence_at_pos(seq, consensus, pos):
     """Inserts a consensus sequence into a sequence at a given position"""
@@ -253,4 +255,4 @@ motif_name_df = pd.read_csv(motif_db_path, sep='\t')
 result = pd.merge(motif_name_df, motifs_cohen_d,
                   how="inner", on=["motif_id", "motif_id"])
 result.to_csv(output_folder + '/' +
-              'jaspar.expressed.tfbs.effect.size.tsv', sep='\t', index=False)
+              'tfbs.effect.size.tsv', sep='\t', index=False)
