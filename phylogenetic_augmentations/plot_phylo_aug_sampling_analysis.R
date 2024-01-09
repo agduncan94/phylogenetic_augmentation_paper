@@ -111,7 +111,7 @@ plot_basset <- ggplot(basset_summary_df, aes(x=fraction, y=mean_test_pr, colour=
 # Plot yeast
 
 # Load yeast data
-yeast_corr_df <- read_tsv("../output/yeast_augmentation_deepstarr/model_metrics.tsv")
+yeast_corr_df <- read_tsv("../output/yeast_augmentation/model_metrics.tsv")
 
 # Clean up values for display
 yeast_corr_df$type <- factor(yeast_corr_df$type)

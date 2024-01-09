@@ -16,12 +16,13 @@ import pandas as pd
 num_replicates = 3
 sample_fraction = 1
 num_species = [1, 5, 10, 20, 136]
+
 model_types = ['deepstarr']
 
 file_folder = "../input/"
 homolog_folder = "../input/drosophila_homologs/"
 species_file = "../input/ordered_drosophila_species_only.txt"
-output_folder = "../output/drosophila_num_species/"
+output_folder = "../output/drosophila_num_species_rev/"
 
 # ====================================================================================================================
 # Main code
@@ -38,6 +39,7 @@ for model_type in model_types:
         # Get a list of species
         species_df = pd.read_csv(species_file, sep='\t')
         species_list = species_df['species'].to_list()
+        species_list.reverse()
         species_list = species_list[0:count]
 
         # Train multiple replicates of model

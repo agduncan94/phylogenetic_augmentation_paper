@@ -20,7 +20,7 @@ Loading from the conda file should create the same environment that was used to 
 Requires R and Conda.
 
 ```
-# Load the conda environment from file
+# Create the conda environment from file
 conda create --name phylogenetic_augmentations python=3.8 cudatoolkit=11.2.2
 
 # Activate the conda env
@@ -35,8 +35,7 @@ pip install -r requirements.txt
 
 ```
 
-
-## Perform model analysis (Figure 1)
+## Perform model analysis (Figure 2)
 
 To run the analysis for different models, run the following commands:
 
@@ -55,9 +54,9 @@ cp ../output/basset_augmentation/model_metrics.tsv ../output/basset_augmentation
 Rscript --vanilla plot_phylo_aug_model_results.R
 ```
 
-## Perform sampling analysis (Figure 2)
+## Perform sampling analysis and 3' UTR analysis (Figure 3 and Supplemental Figure 1)
 
-To run the sampling analysis, run the following commands:
+To run the sampling analysis and 3'UTR analysis, run the following commands:
 
 ```
 # Train models on sampled Drosophila S2 data
@@ -66,31 +65,49 @@ python perform_drosophila_sampling_analysis.py
 # Train models on sampled Basset data
 python perform_basset_sampling_analysis.py
 
+# Train models on the yeast data
+python perform_utr_augmentation_analysis.py
+
 # Rename and copy model_metrics.tsv files to '../output/'
 cp ../output/drosophila_sampling/model_metrics.tsv ../output/drosophila_sampling_metrics.tsv
 cp ../output/basset_sampling/model_metrics.tsv ../output/basset_sampling_metrics.tsv
+cp ../output/yeast_augmentation/model_metrics.tsv ../output/yeast_model_metrics.tsv
+
+# Perform global importance analysis
+python extract_learned_motifs.py
 
 # Create final figures
 Rscript --vanilla plot_phylo_aug_sampling_analysis.R
+Rscript --vanilla plot_yeast_3utr_motif_analysis.R
 ```
 
-## Perform hyperparameter analysis (Figure 3)
+## Perform hyperparameter analysis (Figure 4 and Supplemental Figures 2 and 3)
 
 To run the hyperparameter analysis, run the following commands:
 
 ```
-# Train models for homolog rate
+# Train models for homolog rate with 137 species
 python perform_drosophila_homolog_rate_analysis.py
 
 # Train models for number of species
 python perform_drosophila_num_species_analysis.py
 
+# Train models for homolog rate with first 10 species
+python perform_drosophila_phylo_rate_fewer_species.py
+
+# Train models for number of species (reverse)
+python perform_drosophila_num_species_analysis_reverse.py
+
 # Rename and copy model_metrics.tsv files to '../output/'
 cp ../output/drosophila_phylo_aug_rate/model_metrics.tsv ../output/drosophila_phylo_aug_rate_metrics.tsv
 cp ../output/drosophila_num_species/model_metrics.tsv ../output/drosophila_num_species_metrics.tsv
+cp ../output/drosophila_phylo_aug_rate_reduced_species/model_metrics.tsv ../output/drosophila_phylo_aug_rate_reduced_species_metrics.tsv
+cp ../output/drosophila_num_species_rev/model_metrics.tsv ../output/drosophila_num_species_rev_metrics.tsv
 
 # Create final figures
 Rscript --vanilla plot_hyperparameter_analysis.R
+Rscript --vanilla plot_hyperparameter_analysis_suppl_phylo_aug_rate.R
+Rscript --vanilla plot_hyperparameter_analysis_suppl_num_species_rev.R
 ```
 
 # Misc

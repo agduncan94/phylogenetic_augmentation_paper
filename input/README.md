@@ -7,6 +7,8 @@ This includes the following files:
 * Drosphila S2 homolog files
 * Basset training, validation, and testing files
 * Basset homolog files
+* Yeast training and testing files
+* Yeast homolog files
 
 ```
 bash download_input_data.sh
