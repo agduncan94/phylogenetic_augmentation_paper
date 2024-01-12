@@ -1,7 +1,8 @@
 # ####################################################################################################################
 # plot_phylo_aug_sampling_analysis.R
 #
-# Visualize the test performance of on the Drosophila S2 enhancer data and Basset data with sampling
+# Visualize the test performance of on the Drosophila S2 enhancer data and Basset data with sampling, along with
+# the 3'UTR PUF3 binding test performance
 # ####################################################################################################################
 
 # ====================================================================================================================
@@ -82,11 +83,12 @@ plot_a <- plot_grid(plot_dev, plot_hk, ncol=2, labels=c('A', ''))
 
 # Load Basset data
 basset_df <- read_tsv("../output/basset_sampling_metrics.tsv")
+
+# Clean up values for display
 basset_df$type <- factor(basset_df$type)
 basset_df$fraction <- factor(basset_df$fraction)
 basset_df$type <- fct_relevel(basset_df$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
 basset_df <- basset_df %>% filter(type %in% c('none', 'homologs_finetune'))
-
 basset_df$type <- fct_recode(basset_df$type, `Baseline` = "none", `Phylogenetic Augmentation + Fine-tuning` = "homologs_finetune", `Fine-tuning` = "finetune", `Phylogenetic Augmentation` = "homologs")
 basset_df$model <- fct_recode(basset_df$model, `Basset` = "basset")
 
@@ -108,10 +110,8 @@ plot_basset <- ggplot(basset_summary_df, aes(x=fraction, y=mean_test_pr, colour=
         axis.title=element_text(size=11), axis.text = element_text(size =10), legend.text = element_text(size=11),
         panel.border = element_rect(colour = "black", fill=NA, size=1))
 
-# Plot yeast
-
 # Load yeast data
-yeast_corr_df <- read_tsv("../output/yeast_augmentation/model_metrics.tsv")
+yeast_corr_df <- read_tsv("../output/yeast_model_metrics.tsv")
 
 # Clean up values for display
 yeast_corr_df$type <- factor(yeast_corr_df$type)
@@ -145,14 +145,13 @@ plot_yeast <- ggplot(yeast_corr_summary_df, aes(x=model, y=pr_multilabel_test, c
 grobs <- ggplotGrob(plot_yeast)$grobs
 plot_yeast <- plot_yeast + theme(legend.position="none")
 legend <- grobs[[which(sapply(grobs, function(x) x$name) == "guide-box")]]
-plot_yeast
 
+# Create final figure
 plot_b_c <- plot_grid(plot_basset, plot_yeast, ncol=2, labels=c('B', 'C'))
-
 figure <- plot_grid(plot_a, plot_b_c, ncol=1, rel_heights = c(1, 1,  .1))
 figure <- plot_grid(figure, legend, ncol=1, rel_heights = c(1, .1))
-figure
+figure <- figure + theme(panel.background = element_rect(fill = 'white', colour = 'white'))
 
 # Save a high quality and low quality image
-ggsave("../figures/phylo_aug_figure_3_new.tiff", figure, units="in", width=4, height=4, device='tiff', dpi=350)
-ggsave("../figures/phylo_aug_figure_3_new.jpg", figure, units="in", width=7.5, height=7.5)
+ggsave("../figures/figure_3.tiff", figure, units="in", width=7.5, height=7.5, device='tiff', dpi=350)
+ggsave("../figures/figure_3.jpg", figure, units="in", width=7.5, height=7.5)

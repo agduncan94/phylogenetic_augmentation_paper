@@ -1,40 +1,37 @@
 # ####################################################################################################################
-# identifyImportantMotifs.py
+# extract_learned_motif.py
 #
-# Given a set of conensus sequences for motifs, determines which are used by the CNN to make predictions
+# Creates three sets of sequences to test PUF3 importance and get model predictions
 # ####################################################################################################################
 
 # ====================================================================================================================
 # Imports
 # ====================================================================================================================
-import matplotlib.colors as mcolors
 from keras.models import model_from_json
 from Bio import SeqIO
 import numpy as np
 import pandas as pd
 import random
-import matplotlib.pyplot as plt
 from random import randrange, randint
-import seaborn as sns
 import os
-from scipy import stats
 
 # ====================================================================================================================
 # Global settings and parameters
 # ====================================================================================================================
-output_folder = "./output_3_utr_motif/"
-motif_db_path = "./puf3_motif.txt"
+output_folder = "../output/puf3_motif_importance/"
+motif_db_path = "../input/puf3_motif.txt"
 background_sequence_path = output_folder + "fastas/background.sequence.fa"
 fasta_path = output_folder + "fastas/"
-image_path = output_folder + "figures/"
-model_path_prefix = "../output/yeast_augmentation_deepstarr/DeepSTARR_rep1_frac1.0/Model_DeepSTARR_rep1_frac1.0_none"
+model_prefixes = {
+    'baseline': "../output/yeast_augmentation/DeepSTARR_rep1_frac1.0/Model_DeepSTARR_rep1_frac1.0_none",
+    'augmented': "../output/yeast_augmentation/DeepSTARR_rep1_frac1.0/Model_DeepSTARR_rep1_frac1.0_homologs_finetune"
+}
 num_sequences_per_motif = 1000
 alphabet = "ACGT"
 
 # Create folders
 os.makedirs(output_folder, exist_ok=True)
 os.makedirs(fasta_path, exist_ok=True)
-os.makedirs(image_path, exist_ok=True)
 
 # Set GPU id
 os.environ["CUDA_VISIBLE_DEVICES"] = '1'
@@ -125,7 +122,7 @@ def create_sequences_with_motif(motif_id, consensus):
     return predict_activity(motif_sequences), predict_activity(scrambled_motif_sequences)
 
 
-def plot_motif_activity(motif_id, motif_name, consensus, Y_pred_motifs, Y_pred_scrambled, Y_pred_background):
+def create_file_for_plotting(motif_name, model_type, Y_pred_motifs, Y_pred_scrambled, Y_pred_background):
     """Plot the predicted activity for the three sets of sequences"""
     combined_pred_col = np.array(
         [Y_pred_motifs.flatten(), Y_pred_scrambled.flatten(), Y_pred_background.flatten()]).flatten()
@@ -134,19 +131,8 @@ def plot_motif_activity(motif_id, motif_name, consensus, Y_pred_motifs, Y_pred_s
     activity_df = pd.DataFrame(
         {'Y_pred': combined_pred_col, 'Type': combined_type_col})
 
-    my_pal = {motif_name.upper(): "#b2df8a",
-              "Control": "#1f78b4", "Background": "#a6cee3"}
-    ax = sns.boxplot(x='Type', y='Y_pred', data=activity_df, palette=my_pal)
-    ax.set_title(motif_name)
-    ax.set_xlabel('Type')
-    ax.set_ylabel('Predicted ' + motif_name.upper() + ' binding')
-    ax.set_ylim([0, 1])
-    plt.savefig(image_path + '/' + motif_id + "_" +
-                motif_name.replace('::', '-') + ".png", format='png')
-    plt.clf()
-
     activity_df.to_csv(output_folder + '/' +
-              motif_name.upper() + '_predicted_binding_baseline.tsv', sep='\t', index=False)
+              motif_name.upper() + '_predicted_binding_' + model_type + '.tsv', sep='\t', index=False)
 
 def insert_tfbs_into_sequence_at_pos(seq, consensus, pos):
     """Inserts a consensus sequence into a sequence at a given position"""
@@ -154,105 +140,41 @@ def insert_tfbs_into_sequence_at_pos(seq, consensus, pos):
 
 # Function to scramble a motif
 
-
 def scramble_motif(seq):
     """Scrambles the given motif consensus sequence"""
     shuffled_motif_list = list(seq)
     random.shuffle(shuffled_motif_list)
     return ''.join(shuffled_motif_list)
 
-# Function to compute Cohen's D
-
-
-def cohen_d(x, y):
-    """Computes the Cohen's D between two lists"""
-    nx = len(x)
-    ny = len(y)
-    dof = nx + ny - 2
-    return (np.mean(x) - np.mean(y)) / np.sqrt(((nx-1)*np.std(x, ddof=1) ** 2 + (ny-1)*np.std(y, ddof=1) ** 2) / dof)
-
 # ====================================================================================================================
 # Main code
 # ====================================================================================================================
 
+# Predict sequences using both models
+for model_type in model_prefixes:
+    model_path_prefix = model_prefixes[model_type]
 
-# Load keras model
-keras_model = model_from_json(open(model_path_prefix + '.json').read())
-keras_model.load_weights(model_path_prefix + '.h5')
+    # Load keras model
+    keras_model = model_from_json(open(model_path_prefix + '.json').read())
+    keras_model.load_weights(model_path_prefix + '.h5')
 
-# Create background sequences to insert motifs into
-pred_background_activity = create_background_sequences()
-print(stats.shapiro(pred_background_activity).pvalue)
+    # Create background sequences to insert motifs into
+    pred_background_activity = create_background_sequences()
 
-# Load the motif database for JASPAR CORE 2022 Vertebrates
-motif_df = pd.read_csv(motif_db_path, sep='\t')
+    # Load the motif database for JASPAR CORE 2022 Vertebrates
+    motif_df = pd.read_csv(motif_db_path, sep='\t')
 
-# Columns for Cohen's D file
-name_col = []
-id_col = []
-motif_vs_background_col = []
-scrambled_motif_vs_background_col = []
-motif_vs_background_pval_col = []
-scrambled_motif_vs_background_pval_col = []
-motif_vs_background_adj_pval_col = []
-scrambled_motif_vs_background_adj_pval_col = []
+    # Perform importance analysis on each motif from the database
+    for index, row in motif_df.iterrows():
+        motif_id = row['motif_id']
+        motif_name = row['name']
+        consensus = row['consensus'].upper()
+        print(motif_id)
 
-# Perform importance analysis on each motif from the database
-for index, row in motif_df.iterrows():
-    motif_id = row['motif_id']
-    motif_name = row['name']
-    consensus = row['consensus'].upper()
-    print(motif_id)
+        # Create sequences by inserting the consensus motif (and scrambled) into the background sequences
+        pred_sequence_activity, pred_sequence_scrambled_activity = create_sequences_with_motif(
+            motif_id, consensus)
 
-    name_col.append(motif_name)
-    id_col.append(motif_id)
-
-    # Create sequences by inserting the consensus motif (and scrambled) into the background sequences
-    pred_sequence_activity, pred_sequence_scrambled_activity = create_sequences_with_motif(
-        motif_id, consensus)
-
-    # Plot the predicted activity of the motif vs scrambled vs background
-    plot_motif_activity(motif_id, motif_name, consensus, pred_sequence_activity,
-                        pred_sequence_scrambled_activity, pred_background_activity)
-
-    # Measure effect size
-    motif_vs_background_cd = cohen_d(
-        pred_sequence_activity, pred_background_activity)
-    scrambled_motif_vs_background_cd = cohen_d(
-        pred_sequence_scrambled_activity, pred_background_activity)
-
-    motif_vs_background_col.append(motif_vs_background_cd)
-    scrambled_motif_vs_background_col.append(scrambled_motif_vs_background_cd)
-
-    # Perform significance test
-    test_type = 'less'
-    if motif_vs_background_cd > 0:
-        test_type = 'greater'
-    else:
-        test_type = 'less'
-    #test_stat, pval = stats.ttest_ind(np.array(pred_sequence_activity).flatten(), np.array(pred_background_activity).flatten(), alternative=test_type)
-    test_stat, pval = stats.wilcoxon(np.array(pred_sequence_activity).flatten(
-    ), np.array(pred_background_activity).flatten(), alternative=test_type)
-    motif_vs_background_pval_col.append(pval)
-    motif_vs_background_adj_pval_col.append(pval * len(motif_df))
-
-    test_type = 'less'
-    if scrambled_motif_vs_background_cd > 0:
-        test_type = 'greater'
-    else:
-        test_type = 'less'
-
-    #test_stat, pval = stats.ttest_ind(np.array(pred_sequence_scrambled_activity).flatten(), np.array(pred_background_activity).flatten(), alternative=test_type)
-    test_stat, pval = stats.wilcoxon(np.array(pred_sequence_scrambled_activity).flatten(
-    ), np.array(pred_background_activity).flatten(), alternative=test_type)
-    scrambled_motif_vs_background_pval_col.append(pval)
-    scrambled_motif_vs_background_adj_pval_col.append(pval * len(motif_df))
-
-# Save effect size results to file
-motifs_cohen_d = pd.DataFrame(list(zip(id_col, name_col, motif_vs_background_col, scrambled_motif_vs_background_col, motif_vs_background_pval_col, motif_vs_background_adj_pval_col, scrambled_motif_vs_background_pval_col,
-                              scrambled_motif_vs_background_adj_pval_col)), columns=['motif_id', 'name', 'motif_cd', 'control_cd', 'p_val_motif_vs_bg', 'adj_p_val_motif_vs_bg', 'p_val_control_vs_bg', 'adj_p_val_control_vs_bg'])
-motif_name_df = pd.read_csv(motif_db_path, sep='\t')
-result = pd.merge(motif_name_df, motifs_cohen_d,
-                  how="inner", on=["motif_id", "motif_id"])
-result.to_csv(output_folder + '/' +
-              'tfbs.effect.size.tsv', sep='\t', index=False)
+        # Create a file with all predicted activities
+        create_file_for_plotting(motif_name, model_type, pred_sequence_activity,
+                            pred_sequence_scrambled_activity, pred_background_activity)

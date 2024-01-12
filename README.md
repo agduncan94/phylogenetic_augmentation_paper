@@ -15,4 +15,4 @@ The analyses must be run from the `./phylogenetic_augmentations` directory.
 See `./phylogenetic_augmentations/README.md`
 
 ## View results
-The results from running the analysis are found in `./output`.
+The results from running the analysis are found in `./output` and `./figures`.

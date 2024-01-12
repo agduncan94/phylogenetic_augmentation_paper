@@ -58,6 +58,7 @@ plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=model, y=pcc_test_Dev, 
         axis.title=element_text(size=11), axis.text = element_text(size=10), legend.title = element_text(size=11),
         legend.text = element_text(size=11), panel.border = element_rect(colour = "black", fill=NA, size=1))
 
+# Create plot for Housekeeping task
 drosophila_corr_summary_hk_df <- data_summary(drosophila_corr_df, varname="pcc_test_Hk", 
                                               groupnames=c("model", "type"))
 plot_hk <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_test_Hk, colour=type, fill=type)) +
@@ -74,6 +75,7 @@ plot_hk <- ggplot(drosophila_corr_summary_hk_df, aes(x=model, y=pcc_test_Hk, col
         legend.background = element_rect(size=0.5, linetype="solid", colour="black", fill="white")) +
   guides(colour=guide_legend(title="Type"), fill='none')
 
+# Extract grob for legend
 grobs <- ggplotGrob(plot_hk)$grobs
 plot_hk <- plot_hk + theme(legend.position="none")
 
@@ -108,9 +110,11 @@ plot_basset <- ggplot(basset_summary_df, aes(x=model, y=mean_test_pr, colour=typ
         axis.title=element_text(size=11), axis.text = element_text(size = 10), legend.text = element_text(size=11),
         panel.border = element_rect(colour = "black", fill=NA, size=1))
 
+# Create final figure
 plot_b <- plot_grid(plot_basset, legend, ncol=2)
 figure <- plot_grid(plot_a, plot_b, ncol=1, labels=c('A', 'B'), rel_heights = c(1, 1,  .1))
-figure
+figure <- figure + theme(panel.background = element_rect(fill = 'white', colour = 'white'))
+
 # Save a high quality and low quality image
-ggsave("../figures/phylo_aug_figure_2.tiff", figure, units="in", width=7, height=7, device='tiff', dpi=350)
-ggsave("../figures/phylo_aug_figure_2.jpg", figure, units="in", width=8, height=7)
+ggsave("../figures/figure_2.tiff", figure, units="in", width=8, height=7, device='tiff', dpi=350)
+ggsave("../figures/figure_2.jpg", figure, units="in", width=8, height=7)

@@ -1,7 +1,7 @@
 # ####################################################################################################################
 # plot_hyperparameter_analysis_suppl_num_species_rev.R
 #
-# Visualize the test performance of on the Drosophila S2 enhancer data using different hyperparameter values
+# Visualize the test performance of the Drosophila S2 enhancer data based on the number of species (reversed order)
 # ####################################################################################################################
 
 # ====================================================================================================================
@@ -10,6 +10,7 @@
 library(tidyverse)
 library(cowplot)
 library(ggrepel)
+
 # ====================================================================================================================
 # Common functions
 # ====================================================================================================================
@@ -32,7 +33,7 @@ data_summary <- function(data, varname, groupnames){
 # ====================================================================================================================
 
 # Load Drosophila data
-drosophila_corr_df <- read_tsv("../output/drosophila_num_species_rev/model_metrics.tsv")
+drosophila_corr_df <- read_tsv("../output/drosophila_num_species_rev_metrics.tsv")
 
 # Clean up values for display
 drosophila_corr_df$type <- factor(drosophila_corr_df$type)
@@ -65,8 +66,6 @@ plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=total_length, y=pcc_tes
   geom_text_repel(aes(label=numspecies), box.padding = 0.3, color="black") +
   theme_bw() +
   scale_color_manual(values=c('#7393B3')) +
-  #scale_x_continuous(limits = c(0, 2.5)) +
-  #scale_y_continuous(limits = c(0.66, 0.705)) +
   xlab("Total evolutionary distance \n (Substitutions per site)") +
   ylab("Test set performance (PCC)") +
   ggtitle('Developmental enhancer activity') +
@@ -87,8 +86,6 @@ plot_hk <- ggplot(drosophila_corr_summary_hk_df, aes(x=total_length, y=pcc_test_
   
   theme_bw() +
   scale_color_manual(values=c('#7393B3')) +
-  #scale_x_continuous(limits = c(0, 2.5)) +
-  #scale_y_continuous(limits = c(0.73, 0.785)) +
   xlab("Total evolutionary distance \n (Substitutions per site)") +
   ylab("Test set performance (PCC)") +
   ggtitle('Housekeeping enhancer activity') +
@@ -99,13 +96,16 @@ plot_hk <- ggplot(drosophila_corr_summary_hk_df, aes(x=total_length, y=pcc_test_
         legend.background = element_rect(size=0.5, linetype="solid", colour="black", fill="white")) +
   guides(colour=guide_legend(title="Type"), fill='none')
 
-
+# Copy legend
 grobs <- ggplotGrob(plot_hk)$grobs
 plot_hk <- plot_hk + theme(legend.position="none")
 legend <- grobs[[which(sapply(grobs, function(x) x$name) == "guide-box")]]
 
+# Create final figure
 figure <- plot_grid(plot_dev, plot_hk, ncol=2)
 figure <- plot_grid(figure, legend, ncol=1, rel_heights = c(1, .1))
-figure
-ggsave("../figures/phylo_aug_suppl_figure_2.jpg", figure, units="in", width=7, height=4.5)
+
+# Plot figure
+ggsave("../figures/suppl_figure_2.tiff", figure, units="in", width=7, height=4.5, device='tiff', dpi=350)
+ggsave("../figures/suppl_figure_2.jpg", figure, units="in", width=7, height=4.5)
 

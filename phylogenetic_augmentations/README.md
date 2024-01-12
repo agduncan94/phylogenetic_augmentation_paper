@@ -10,11 +10,13 @@ Note that the runtime of these analyses is dependent on the system being used. A
 * 31.1 GiB of memory
 
 ## Download data
+
 The data for the analyses are stored on Zenodo and can be downloaded from there.
 
 See `../input/README.md` for instructions.
 
 ## Initialize the conda environment
+
 Loading from the conda file should create the same environment that was used to run the initial analysis. The analysis requires access to a GPU.
 
 Requires R and Conda.
@@ -75,6 +77,8 @@ cp ../output/yeast_augmentation/model_metrics.tsv ../output/yeast_model_metrics.
 
 # Perform global importance analysis
 python extract_learned_motifs.py
+cp ../output/puf3_motif_importance/PUF3_predicted_binding_baseline.tsv ../output/PUF3_predicted_binding_baseline.tsv
+cp ../output/puf3_motif_importance/PUF3_predicted_binding_augmented.tsv ../output/PUF3_predicted_binding_augmented.tsv
 
 # Create final figures
 Rscript --vanilla plot_phylo_aug_sampling_analysis.R

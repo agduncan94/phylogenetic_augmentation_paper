@@ -13,7 +13,6 @@ import models_utr as models
 # Global settings and parameters
 # ====================================================================================================================
 model_types = ['deepstarr']
-
 num_replicates = 6
 sample_fraction = 1.0
 

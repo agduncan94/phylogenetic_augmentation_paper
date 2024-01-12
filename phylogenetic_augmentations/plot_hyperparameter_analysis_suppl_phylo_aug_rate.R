@@ -1,7 +1,7 @@
 # ####################################################################################################################
 # plot_hyperparameter_analysis_suppl_phylo_aug_rate.R
 #
-# Visualize the test performance of on the Drosophila S2 enhancer data using different hyperparameter values
+# Visualize the test performance of on the Drosophila S2 enhancer data using different phylo aug rates with 10 species
 # ####################################################################################################################
 
 # ====================================================================================================================
@@ -33,7 +33,7 @@ data_summary <- function(data, varname, groupnames){
 # ====================================================================================================================
 
 # Plot homolog rate
-drosophila_pcc <- read_tsv("../output/drosophila_phylo_aug_rate_reduced_species/model_metrics.tsv")
+drosophila_pcc <- read_tsv("../output/drosophila_phylo_aug_rate_reduced_species_metrics.tsv")
 drosophila_pcc$type <- factor(drosophila_pcc$type)
 drosophila_pcc$phylo_aug_rate <- factor(drosophila_pcc$phylo_aug_rate)
 drosophila_pcc$fraction <- factor(drosophila_pcc$fraction)
@@ -94,5 +94,7 @@ legend <- grobs[[which(sapply(grobs, function(x) x$name) == "guide-box")]]
 
 # Final plot
 figure <- plot_grid(plot, legend, ncol=1, rel_heights = c(1, .1))
-figure
-ggsave("../figures/phylo_aug_suppl_figure_3.jpg", figure, units="in", width=7.5, height=4)
+
+# Plot figure
+ggsave("../figures/suppl_figure_3.tiff", figure, units="in", width=7.5, height=4, device='tiff', dpi=350)
+ggsave("../figures/figure_3.jpg", figure, units="in", width=7.5, height=4)
