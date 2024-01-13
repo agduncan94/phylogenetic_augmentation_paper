@@ -39,7 +39,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 # ====================================================================================================================
 # Generator code for loading data
 # ====================================================================================================================
-from random import shuffle
 
 def get_batch(homolog_obj, data, indices, use_homologs=False, phylo_aug_rate=1.0):
     """
@@ -59,11 +58,9 @@ def get_batch(homolog_obj, data, indices, use_homologs=False, phylo_aug_rate=1.0
     Y_batch = []
     for i, task in enumerate(TASKS):
         col_val = Y[i]
-        #shuffle(col_val)
         Y_batch.append(col_val)
 
     # Create final output
-    #Y_batch = [item.to_numpy() for item in Y]
     return X_batch, (np.array(Y_batch)).transpose()
 
 
@@ -137,8 +134,8 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
     os.makedirs(model_output_folder, exist_ok=True)
 
     # Determine the number of sequences in the train/test sets (subtract 1 for header row)
-    train_file = file_folder + "Yeast_Sequences_Train_PU3.txt"
-    test_file = file_folder + "Yeast_Sequences_Test_PU3.txt"
+    train_file = file_folder + "Yeast_Sequences_Train.txt"
+    test_file = file_folder + "Yeast_Sequences_Test.txt"
 
     num_samples_train = utils.count_lines_in_file(
         train_file) - 1
@@ -178,7 +175,7 @@ def train(model, model_type, use_homologs, sample_fraction, replicate, file_fold
                         steps_per_epoch=math.ceil(
                             reduced_num_samples_train / BATCH_SIZE),
                         callbacks=[History()])
-    print(history.history)
+
     # Define augmentation type
     if use_homologs:
         augmentation_type = 'homologs'
@@ -315,10 +312,7 @@ def plot_prediction_vs_actual(model, input_file, output_file_prefix, num_samples
         Y_pred_task = Y_pred_transposed[i]
         Y_task = Y_transposed[i]
         Y_pred_task = np.rint(Y_pred_task)
-        #print(metrics.confusion_matrix(Y_task, Y_pred_task))
 
-    print("test")
-    print(model_metrics)
     return model_metrics
 
 
@@ -328,8 +322,7 @@ def get_performance_metrics(model, input_file, num_samples, homolog_folder, use_
     
     model_metrics = model.evaluate(
         data_generator, steps=math.ceil(num_samples / BATCH_SIZE))
-    print("train")
-    print(model_metrics)
+
     return model_metrics
 
 
@@ -378,7 +371,6 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fra
         "\t" + str(replicate) + "\t" + str(sample_fraction) + \
         "\t" + str(phylo_aug_rate) + "\t" + str(species) + \
         '\t' + str(training_metrics[1]) + \
-        '\t' + str(training_metrics[2]) + \
         '\t' + str(test_metrics[1]) + \
         '\t' + str(test_metrics[2]) + '\n'
 
@@ -389,7 +381,7 @@ def write_to_file(model_id, augmentation_type, model_type, replicate, sample_fra
         f.close()
     else:
         f = open(correlation_file_path, "w")
-        header_line = "name\ttype\tmodel\treplicate\tfraction\tphylo_aug_rate\tspecies\taccuracy_train\ttpr_multilabel_train\taccuracy_test\tpr_multilabel_test\n"
+        header_line = "name\ttype\tmodel\treplicate\tfraction\tphylo_aug_rate\tspecies\taccuracy_train\taccuracy_test\tpr_test\n"
         f.write(header_line)
         f.write(line)
         f.close()

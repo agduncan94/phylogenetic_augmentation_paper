@@ -15,7 +15,7 @@ library(cowplot)
 # ====================================================================================================================
 
 # Load yeast motif data for augmented model
-puf3_binding_preds_aug <- read_tsv("../output/puf3_predicted_binding_augmented.tsv")
+puf3_binding_preds_aug <- read_tsv("../output/PUF3_predicted_binding_augmented.tsv")
 
 # Clean up values for display
 puf3_binding_preds_aug$Type <- factor(puf3_binding_preds_aug$Type)
@@ -35,7 +35,7 @@ figure_a <- ggplot(puf3_binding_preds_aug, aes(x=Type, y=Y_pred)) +
 
 
 # Load yeast motif data for baseline model
-puf3_binding_preds_baseline <- read_tsv("../output/puf3_predicted_binding_baseline.tsv")
+puf3_binding_preds_baseline <- read_tsv("../output/PUF3_predicted_binding_baseline.tsv")
 
 # Clean up values for display
 puf3_binding_preds_baseline$Type <- factor(puf3_binding_preds_baseline$Type)

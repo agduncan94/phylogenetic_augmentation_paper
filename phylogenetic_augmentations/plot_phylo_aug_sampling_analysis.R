@@ -123,11 +123,11 @@ yeast_corr_df$model <- fct_relevel(yeast_corr_df$model, c('deepstarr', 'explainn
 yeast_corr_df$model <- fct_recode(yeast_corr_df$model, `DeepSTARR` = "deepstarr", `ExplaiNN` = "explainn", `Motif DeepSTARR` = "motif_deepstarr", `Scrambled Control` = "Scrambled Control")
 
 # Create plot for yeast classification
-yeast_corr_summary_df <- data_summary(yeast_corr_df, varname="pr_multilabel_test", 
+yeast_corr_summary_df <- data_summary(yeast_corr_df, varname="pr_test", 
                                       groupnames=c("model", "type"))
-plot_yeast <- ggplot(yeast_corr_summary_df, aes(x=model, y=pr_multilabel_test, colour=type, fill=type)) +
+plot_yeast <- ggplot(yeast_corr_summary_df, aes(x=model, y=pr_test, colour=type, fill=type)) +
   geom_point(data=yeast_corr_df, size=2, position = position_dodge(width=0.9)) +
-  geom_errorbar(aes(ymin = pr_multilabel_test-sd, ymax = pr_multilabel_test+sd), width=.1, position=position_dodge(.9), colour="black") +
+  geom_errorbar(aes(ymin = pr_test-sd, ymax = pr_test+sd), width=.1, position=position_dodge(.9), colour="black") +
   theme_bw() +
   geom_hline(yintercept=0.104, linetype="dashed", color = "darkgrey") +
   geom_hline(yintercept=0.448, linetype="dashed", color = "red") +

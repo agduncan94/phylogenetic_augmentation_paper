@@ -1,4 +1,4 @@
-name	type	model	replicate	fraction	homolog_rate	pcc_train_Dev	pcc_train_Hk	pcc_val_Dev	pcc_val_Hk	pcc_test_Dev	pcc_test_Hk
+name	type	model	replicate	fraction	phylo_aug_rate	pcc_train_Dev	pcc_train_Hk	pcc_val_Dev	pcc_val_Hk	pcc_test_Dev	pcc_test_Hk
 deepstarr_rep1_frac1.0	homologs	deepstarr	1	1	0.1	0.737370848655701	0.79222023487091	0.652797341346741	0.729606449604034	0.666775986111167	0.745472466006736
 deepstarr_rep1_frac1.0	homologs_finetune	deepstarr	1	1	0.1	0.773334622383118	0.815420389175415	0.660894334316254	0.736083388328552	0.669328445209096	0.748552264984868
 deepstarr_rep1_frac1.0	homologs	deepstarr	1	1	0.2	0.673404693603516	0.746388971805573	0.662158966064453	0.737046420574188	0.665330788841794	0.755287738430136

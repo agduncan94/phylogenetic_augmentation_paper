@@ -97,7 +97,7 @@ plot_a <- plot_grid(plot_dev, plot_hk, ncol=2)
 # Plot homolog rate
 drosophila_pcc <- read_tsv("../output/drosophila_phylo_aug_rate_metrics.tsv")
 drosophila_pcc$type <- factor(drosophila_pcc$type)
-drosophila_pcc$homolog_rate <- factor(drosophila_pcc$homolog_rate)
+drosophila_pcc$phylo_aug_rate <- factor(drosophila_pcc$phylo_aug_rate)
 drosophila_pcc$fraction <- factor(drosophila_pcc$fraction)
 drosophila_pcc$type <- fct_relevel(drosophila_pcc$type, c('none', 'finetune', 'homologs', 'homologs_finetune'))
 
@@ -107,9 +107,9 @@ drosophila_pcc$type <- fct_recode(drosophila_pcc$type, `Baseline` = "none", `Fin
 
 # Summarize developmental data and plot
 drosophila_corr_summary_dev_df <- data_summary(drosophila_pcc, varname="pcc_test_Dev", 
-                                               groupnames=c("type", "homolog_rate"))
+                                               groupnames=c("type", "phylo_aug_rate"))
 
-plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=homolog_rate, y=pcc_test_Dev, colour=type, fill=type)) +
+plot_dev <- ggplot(drosophila_corr_summary_dev_df, aes(x=phylo_aug_rate, y=pcc_test_Dev, colour=type, fill=type)) +
   geom_point(data=drosophila_pcc, size=2, position = position_dodge(width=0.9)) +
   geom_errorbar(aes(ymin = pcc_test_Dev-sd, ymax = pcc_test_Dev+sd), width=.4, position=position_dodge(.9), colour="black") +
   theme_bw() +
