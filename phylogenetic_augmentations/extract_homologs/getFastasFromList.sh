@@ -11,4 +11,6 @@ species_file=$2
 while read species; do
   echo $species
   hal2fasta $hal_alignment $species --outFaPath ${species}.fa
+  samtools faidx ${species}.fa
+  cut -f1,2 ${species}.fa.fai > ${species}.fa.fai.chrom.sizes
 done <$species_file
