@@ -32,7 +32,7 @@ In order to identify homologs, you will need the FASTA file for each species in 
 
 The following code will create a folder with these files.
 
-`
+```
 # Create a file with a list of species of interest
 # Use halStats --genomes <path/to/drosophila.hal> and filter the results
 # Store into ./drosophila_species_file.txt
@@ -40,7 +40,7 @@ The following code will create a folder with these files.
 
 # Get FASTAs for species in list from the drosophila.hal file
 bash getFastasFromList.sh drosophila.hal drosophila_species_file.txt
-`
+```
 
 ## Call homologs on Drosophila S2 training sequences
 
@@ -49,10 +49,10 @@ Before running, please see the following notes:
 * The script `runLiftOverOnBed_gnu_parallel.sh` extracts 5 homologs at a time. This can be changed based on available IO by editing the file.
 * We recommend using nohup and &, as running for all species take a few days
 
-`
+```
 # Run liftover
 nohup bash runLiftOverOnBed_gnu_parallel.sh drosophila_s2_starr_seq_train.dm6.bed D_MELANOGASTER drosophila_species_file.txt drosophila_s2_train ./drosophila_s2_train 249 &
-`
+```
 
 As the code performs liftOver on species, you can find the homolog FASTA files in `./drosophila_s2_train/per_species_fa/`.
 
