@@ -12,6 +12,7 @@ The environment requires a few dependencies, including:
 * hdf5
 * numpy and matplotlib
 * samtools
+* bedtools
 * [hal](https://github.com/ComparativeGenomicsToolkit/hal)
 * [HALPER](https://github.com/pfenninglab/halLiftover-postprocessing)
 
